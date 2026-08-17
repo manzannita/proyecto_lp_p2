@@ -1,0 +1,18 @@
+# Dependencias de TODO el backend (los tres issues).
+# Se declaran completas desde el inicio para que nadie mas tenga que editar
+# este archivo y no haya conflictos de merge. Si hace falta agregar una,
+# anadirla AL FINAL.
+
+# --- nucleo (issue #1) ---
+Flask==3.0.3
+python-dotenv==1.0.1
+
+# --- pipeline de clasificacion (issue #2) ---
+pandas==2.2.2
+PyYAML==6.0.2
+
+# --- asistente de IA (issue #3) ---
+requests==2.32.3
+
+# --- pruebas (los tres) ---
+pytest==8.3.3
