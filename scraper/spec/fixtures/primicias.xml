@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+  <channel>
+    <title>Primicias</title>
+    <link>https://www.primicias.ec</link>
+    <description>Primicias</description>
+    <item>
+      <author>info@primicias.ec (Primicias)</author>
+      <title><![CDATA[Directorio de secciones]]></title>
+      <link>https://www.primicias.ec</link>
+      <guid isPermaLink="true">https://www.primicias.ec/</guid>
+      <pubDate>Sun, 16 Aug 2026 20:46:45 -0500</pubDate>
+      <description><![CDATA[<p>Para acceder a la informacion por temas</p>]]></description>
+    </item>
+    <item>
+      <guid isPermaLink="true">https://www.primicias.ec/sucesos/incendio-riobamba-drones-bomberos-130421/</guid>
+      <title>
+                Incendio en Riobamba consumio 2.000 metros cuadrados    </title>
+      <description>&quot;Un vehiculo que bloquea el paso puede retrasar la respuesta&quot;, dijo el Cuerpo de Bomberos.</description>
+      <pubDate>Sun, 16 Aug 2026 16:50:37 -0500</pubDate>
+      <link>https://www.primicias.ec/sucesos/incendio-riobamba-drones-bomberos-130421/</link>
+      <category>Sucesos</category>
+      <dc:creator>Gabriela Coba</dc:creator>
+    </item>
+    <item>
+      <guid isPermaLink="true">https://www.primicias.ec/economia/banco-central-proyeccion-130430/</guid>
+      <title>
+                El Banco Central revisa la proyeccion de crecimiento    </title>
+      <description>La entidad ajusto su estimacion para el cierre del ano.</description>
+      <pubDate>Sun, 16 Aug 2026 09:12:00 -0500</pubDate>
+      <link>https://www.primicias.ec/economia/banco-central-proyeccion-130430/</link>
+      <category>Economia</category>
+    </item>
+  </channel>
+</rss>
