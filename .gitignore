@@ -1,3 +1,14 @@
+# Secretos: NUNCA subir el .env (ver .env.example)
+.env
+
+# Base de datos local de desarrollo
+*.db
+*.db-wal
+*.db-shm
+
+# Cache del scraper (ETags y hashes de los feeds)
+scraper/.cache/
+
 # Sistema operativo
 Thumbs.db
 Desktop.ini
@@ -14,20 +25,25 @@ venv/
 env/
 node_modules/
 
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Ruby
+.bundle/
+vendor/bundle/
+.rspec_status
+
 # Artefactos de compilación
 build/
 dist/
 out/
 target/
-bin/
 obj/
 *.o
 *.class
 *.exe
-
-# Python
-__pycache__/
-*.py[cod]
 
 # Logs y temporales
 *.log

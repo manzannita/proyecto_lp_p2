@@ -1,0 +1,28 @@
+# Medios y feeds RSS de los que se recolecta.
+#
+# URLs verificadas contra los sitios reales el 2026-08-16.
+#
+# Se usa UN feed general por medio a proposito. Combinar feeds por seccion
+# (politica.xml, economia.xml, ...) inflaria artificialmente esos temas en el
+# conteo, que es justo lo que la pregunta de analisis quiere medir sin sesgo.
+#
+# honra_get_condicional documenta lo VERIFICADO contra cada servidor:
+#   El Universo -> manda ETag y Last-Modified, pero su CDN responde 200 con el
+#                  mismo ETag aunque se le mande If-None-Match. No honra 304.
+#   Primicias   -> directamente no manda validadores.
+# Por eso el scraper trae ademas un fallback por hash del cuerpo, que es el que
+# de verdad ahorra trabajo hoy (ver scraper/lib/rss_client.rb).
+# El campo es documentacion: el cliente funciona igual en los tres casos.
+
+medios:
+  - slug: el-universo
+    nombre: El Universo
+    url_feed: https://www.eluniverso.com/arc/outboundfeeds/rss/?outputType=xml
+    activo: true
+    honra_get_condicional: false # manda ETag, pero el CDN ignora If-None-Match
+
+  - slug: primicias
+    nombre: Primicias
+    url_feed: https://www.primicias.ec/rss/home.xml
+    activo: true
+    honra_get_condicional: false # no manda ETag ni Last-Modified

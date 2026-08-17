@@ -1,0 +1,15 @@
+# frozen_string_literal: true
+
+source 'https://rubygems.org'
+
+ruby '>= 3.0'
+
+gem 'dotenv', '~> 3.1'    # lee el .env compartido con el backend
+gem 'httparty', '~> 0.22' # descarga de los feeds
+gem 'nokogiri', '~> 1.16' # parseo del XML
+gem 'sqlite3', '~> 2.0'   # persistencia
+
+group :development, :test do
+  gem 'rspec', '~> 3.13'
+  gem 'webmock', '~> 3.23' # simula respuestas HTTP en los tests, sin red
+end
