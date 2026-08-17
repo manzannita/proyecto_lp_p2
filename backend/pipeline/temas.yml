@@ -1,0 +1,32 @@
+seguridad:
+  prioridad: 1
+  peso: 1.0
+  claves: [asesinato, sicariato, robo, extorsion, policia, carcel, banda, secuestro, fiscalia, allanamiento]
+politica:
+  prioridad: 2
+  peso: 1.0
+  claves: [gobierno, presidente, asamblea, ministro, elecciones, electoral, legislativo, reforma, gabinete, oposicion]
+economia:
+  prioridad: 3
+  peso: 1.0
+  claves: [inflacion, dolar, exportacion, impuesto, banco, inversion, precio, combustible, deuda, empleo]
+salud:
+  prioridad: 4
+  peso: 1.0
+  claves: [salud, hospital, vacuna, vacunacion, enfermedad, epidemia, medico, medicina]
+deportes:
+  prioridad: 5
+  peso: 1.0
+  claves: [futbol, partido, seleccion, campeonato, liga, gol, barcelona, emelec, deporte]
+clima:
+  prioridad: 6
+  peso: 1.0
+  claves: [clima, lluvia, inundacion, sequia, oleaje, tormenta, temperatura, incendio forestal]
+internacional:
+  prioridad: 7
+  peso: 1.0
+  claves: [internacional, guerra, cumbre, tratado, frontera, extranjero, mundial, onu]
+otros:
+  prioridad: 99
+  peso: 1.0
+  claves: []
