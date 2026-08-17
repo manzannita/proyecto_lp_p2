@@ -1,0 +1,34 @@
+# Sistema operativo
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Editores / IDEs
+.vscode/
+.idea/
+*.swp
+
+# Entornos y dependencias
+.venv/
+venv/
+env/
+node_modules/
+
+# Artefactos de compilación
+build/
+dist/
+out/
+target/
+bin/
+obj/
+*.o
+*.class
+*.exe
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Logs y temporales
+*.log
+tmp/
