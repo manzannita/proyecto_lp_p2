@@ -238,11 +238,105 @@ vacías; fechas, booleanos o slugs inválidos responden `400`.
 
 ### `GET /api/tendencias/series-semanales` — Cristian (issue #3)
 
-_Pendiente._
+Evolución semana a semana de la cantidad de noticias sobre un tema. Agrupa por
+semana ISO (lunes como inicio) y rellena con `total: 0` las semanas sin
+noticias dentro del periodo, para que el gráfico del dashboard no mienta sobre
+la tendencia.
+
+| Parámetro | Tipo | Valor por defecto | Descripción |
+|---|---|---|---|
+| `tema` | slug | — | **obligatorio**, ej. `clima`, `seguridad` |
+| `desde` | `YYYY-MM-DD` | primera noticia del tema | opcional |
+| `hasta` | `YYYY-MM-DD` | hoy | opcional |
+| `medio` | slug | todos | opcional, filtra por medio |
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "http://127.0.0.1:5000/api/tendencias/series-semanales?tema=seguridad"
+```
+
+```json
+{
+  "tema": "seguridad",
+  "granularidad": "semana",
+  "periodo": { "desde": "2026-07-20", "hasta": "2026-08-16" },
+  "serie": [
+    { "semana_inicio": "2026-07-20", "semana_iso": "2026-W30", "total": 14 },
+    { "semana_inicio": "2026-07-27", "semana_iso": "2026-W31", "total": 0 },
+    { "semana_inicio": "2026-08-03", "semana_iso": "2026-W32", "total": 22 }
+  ],
+  "resumen": {
+    "total_periodo": 36,
+    "promedio_semanal": 12.0,
+    "semana_pico": "2026-W32",
+    "variacion_ultima_semana_pct": null
+  }
+}
+```
+
+El relleno de huecos y los cálculos del resumen (`promedio_semanal`,
+`semana_pico`, `variacion_ultima_semana_pct`) se hacen con `pandas`
+(`resample('W-MON')`) sobre la serie diaria ya consultada con SQL
+parametrizado. `variacion_ultima_semana_pct` es `null` cuando hay menos de dos
+semanas en el periodo o la penúltima semana no tiene noticias con las que
+comparar.
+
+Errores: `400` si falta `tema`, si una fecha no parsea, si `desde > hasta` o
+si el `medio` no existe. `404` si el slug de `tema` no está en el catálogo.
+`401` sin API key. Un tema válido sin noticias en el rango responde `200` con
+`"serie": []`, no `404`.
 
 ### `POST /api/asistente/preguntar` — Cristian (issue #3)
 
-_Pendiente._
+Asistente de IA generativa que responde preguntas en lenguaje natural
+**fundamentadas únicamente en las noticias recolectadas** — nunca inventa
+datos. Antes de llamar al LLM, `backend/services/recuperador.py` busca en la
+base (con `LIKE` parametrizado, nunca concatenando la entrada del usuario) las
+noticias relacionadas con la pregunta; si no encuentra ninguna, la ruta
+responde `200` con un mensaje de "no tengo datos suficientes" **sin llamar al
+LLM**, para no gastar cuota ni arriesgar una alucinación.
+
+**Variables de entorno** (agregar a `.env`, nunca al código):
+
+| Variable | Para qué |
+|---|---|
+| `LLM_API_KEY` | Clave del proveedor del LLM (OpenAI). Se obtiene en [platform.openai.com/api-keys](https://platform.openai.com/api-keys). |
+| `LLM_MODELO` | Modelo a usar, ej. `gpt-4o-mini`. |
+
+Si falta cualquiera de las dos, `backend/services/asistente_ia.py` falla con
+un mensaje claro apenas se necesita el LLM, no a medias de una petición con un
+error críptico del proveedor.
+
+```bash
+curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
+  -d '{"pregunta": "¿De qué se habló más esta semana en seguridad?", "limite_contexto": 20}' \
+  http://127.0.0.1:5000/api/asistente/preguntar
+```
+
+```json
+{
+  "respuesta": "Durante la semana del 3 de agosto predominaron los operativos policiales, segun El Universo...",
+  "fuentes": [
+    { "titular": "Operativo policial deja seis detenidos en Duran", "medio": "El Universo", "url": "https://...", "fecha": "2026-08-05" }
+  ],
+  "noticias_consultadas": 18,
+  "modelo": "gpt-4o-mini"
+}
+```
+
+Body: `pregunta` (obligatorio, 1 a 500 caracteres) y `limite_contexto`
+(opcional, 1 a 50, por defecto 20).
+
+Cada llamada al proveedor usa un timeout de 30 s y reintenta una vez ante un
+error transitorio (5xx o timeout de red); no reintenta ante `401`/`429`, ya
+que repetir la misma petición no cambia el resultado.
+
+Errores: `400` si falta `pregunta`, viene vacía o supera 500 caracteres, o si
+`limite_contexto` no es un entero entre 1 y 50. `401` sin API key. `429` si el
+proveedor aplica límite de tasa. `503` con
+`{"error": "El asistente no esta disponible en este momento"}` ante timeout o
+caída del proveedor — nunca se filtra el stack trace ni el mensaje crudo del
+proveedor.
 
 ## Pipeline de clasificación
 
@@ -268,7 +362,24 @@ la prioridad declarada. Las palabras vacías se mantienen en
 
 ## Asistente de IA
 
-_Pendiente — issue #3 (Cristian)._
+Arma el contexto antes de llamar al LLM en dos pasos, para que la respuesta
+esté siempre fundamentada en lo que realmente se recolectó:
+
+1. **`backend/services/recuperador.py`** — `recuperar_contexto(pregunta,
+   limite=20)` extrae términos de la pregunta, busca coincidencias en
+   `titular`/`resumen` con `LIKE` parametrizado, detecta filtros de tema/fecha
+   mencionados en la pregunta, y ordena por relevancia (peso doble al
+   titular) y recencia. Si no hay coincidencias devuelve `[]`.
+2. **`backend/services/asistente_ia.py`** — cliente HTTP del proveedor
+   (OpenAI, Chat Completions). Usa un prompt de sistema
+   (`backend/services/prompts.py`) que obliga a responder solo con el
+   contexto entregado, citar el medio de cada dato y decir explícitamente "no
+   tengo datos suficientes" cuando el contexto no alcance. Los errores del
+   proveedor se envuelven en `LLMTimeout`, `LLMRateLimit` y `LLMError` para
+   que la ruta decida el código HTTP sin filtrar el mensaje crudo.
+
+**Variables de entorno:** ver `LLM_API_KEY` y `LLM_MODELO` en la sección del
+endpoint `POST /api/asistente/preguntar` más abajo.
 
 ## Cómo correr los tests
 
