@@ -214,7 +214,27 @@ devuelve `200` con `"temas": []`, no `404`.
 
 ### `GET /api/medios` y `GET /api/medios/comparativa` — Valentina (issue #2)
 
-_Pendiente._
+`GET /api/medios` devuelve el catálogo de medios activos y el total de noticias
+recolectadas por cada uno. `GET /api/medios/comparativa` compara su distribución
+temática.
+
+| Parámetro | Tipo | Valor por defecto | Descripción |
+|---|---|---|---|
+| `desde` | `YYYY-MM-DD` | primera noticia | Inicio opcional del periodo |
+| `hasta` | `YYYY-MM-DD` | hoy | Fin opcional del periodo |
+| `temas` | slugs CSV | todos | Ejemplo: `seguridad,politica` |
+| `normalizar` | bool | `true` | Porcentajes dentro de cada medio |
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "http://127.0.0.1:5000/api/medios/comparativa?temas=seguridad,politica"
+```
+
+La respuesta contiene conteos y porcentajes por medio. `brechas` muestra la
+diferencia en puntos porcentuales y qué medio prioriza cada tema, ordenada de
+mayor a menor. Con `normalizar=false`, los porcentajes usan como denominador el
+total combinado de ambos medios. Un periodo sin datos responde `200` con listas
+vacías; fechas, booleanos o slugs inválidos responden `400`.
 
 ### `GET /api/tendencias/series-semanales` — Cristian (issue #3)
 
@@ -226,7 +246,25 @@ _Pendiente._
 
 ## Pipeline de clasificación
 
-_Pendiente — issue #2 (Valentina)._
+El pipeline toma las noticias pendientes (`tema_id IS NULL`), normaliza su texto,
+las clasifica y actualiza cada lote dentro de una transacción:
+
+```bash
+python -m backend.pipeline.procesar
+python -m backend.pipeline.procesar --lote 200
+python -m backend.pipeline.procesar --reclasificar
+```
+
+Una segunda ejecución normal es idempotente y reporta `Procesadas: 0`.
+`--reclasificar` vuelve a evaluar todo el histórico. El resumen final muestra el
+total procesado, la distribución por tema, cuántas noticias cayeron en `otros` y
+el tiempo empleado.
+
+Las reglas viven en `backend/pipeline/temas.yml`. Cada slug debe coincidir con la
+tabla `temas`. Se pueden ajustar `claves`, `peso` y `prioridad` sin modificar
+Python. El titular pesa el doble que el resumen y los empates se resuelven por
+la prioridad declarada. Las palabras vacías se mantienen en
+`backend/pipeline/stopwords_es.txt`.
 
 ## Asistente de IA
 
