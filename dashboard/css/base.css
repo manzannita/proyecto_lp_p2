@@ -1,0 +1,370 @@
+/* NoticIA EC - dashboard: fundaciones visuales
+ *
+ * Direccion de diseno: sala de redaccion. Papel de periodico, tinta negra,
+ * filetes finos y un bermellon de sello para lo que exige atencion. La
+ * tipografia hace el trabajo: Fraunces (serif editorial) para titulos e IBM
+ * Plex Mono para TODO lo funcional -- etiquetas, cifras, ejes, tablas -- porque
+ * un radar de noticias es, en el fondo, un teletipo con graficos.
+ *
+ * Las dos familias estan VENDORIZADAS en vendor/fonts/ (subconjunto latino,
+ * ~112 KB) por la misma razon que Chart.js: el dashboard tiene que verse igual
+ * en la sustentacion aunque no haya internet en el aula.
+ *
+ * Tema unico y deliberado: papel claro. No hay modo oscuro porque el concepto
+ * es papel impreso; invertirlo lo volveria otra cosa.
+ */
+
+/* --------------------------------------------------------------------------
+   Tipografias vendorizadas
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: "Fraunces";
+  src: url("../vendor/fonts/fraunces-400-800-latin.woff2") format("woff2");
+  font-weight: 400 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../vendor/fonts/ibm-plex-mono-400-latin.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../vendor/fonts/ibm-plex-mono-500-latin.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  src: url("../vendor/fonts/ibm-plex-mono-600-latin.woff2") format("woff2");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --------------------------------------------------------------------------
+   Tokens
+   -------------------------------------------------------------------------- */
+:root {
+  color-scheme: light;
+
+  /* Superficies */
+  --papel: #efebe1;         /* plano de la pagina */
+  --papel-tarjeta: #f8f6f0; /* superficie de los graficos (la validada) */
+  --papel-hueco: #e7e2d5;   /* fondos de campos y estados vacios */
+
+  /* Tinta */
+  --tinta: #17150f;
+  --tinta-2: #56513f;
+  --tinta-3: #857f6b;       /* ejes, etiquetas menores */
+
+  /* Filetes */
+  --regla: #ddd7c7;         /* grilla capilar */
+  --regla-fuerte: #c4bca6;  /* linea base y bordes de tarjeta */
+
+  /* Bermellon de sello: cromo de la interfaz, NUNCA color de una serie.
+     Es un paso mas oscuro que el slot 2 de datos para que no se confundan. */
+  --bermellon: #a8321a;
+  --bermellon-lavado: rgba(168, 50, 26, 0.09);
+
+  /* Paleta categorica de datos.
+     VALIDADA con scripts/validate_palette.js de la skill dataviz sobre la
+     superficie #f8f6f0 en modo claro: los 8 slots pasan banda de luminosidad,
+     piso de croma, separacion CVD y contraste en pares adyacentes; los 3
+     primeros pasan tambien --pairs all, asi que una vista puede superponer
+     hasta 3 series sin ambiguedad. El ORDEN es el mecanismo de seguridad
+     CVD: no se reordena ni se cicla, y un noveno tema va a "otros". */
+  --serie-1: #2a6fb0; /* azul de imprenta */
+  --serie-2: #d0472a; /* bermellon */
+  --serie-3: #109b70; /* verde */
+  --serie-4: #a87a0a; /* ocre */
+  --serie-5: #b0538c; /* ciruela */
+  --serie-6: #5e9430; /* oliva */
+  --serie-7: #6558c9; /* indigo */
+  --serie-8: #c24c4c; /* ladrillo */
+
+  /* Tipografia */
+  --display: "Fraunces", Georgia, "Times New Roman", serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, "Courier New", monospace;
+
+  /* Ritmo */
+  --gap: 1.5rem;
+  --radio: 3px; /* casi recto: el papel impreso no tiene esquinas blandas */
+  --ancho-maximo: 1240px;
+}
+
+/* --------------------------------------------------------------------------
+   Reset corto
+   -------------------------------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body,
+h1,
+h2,
+h3,
+p,
+figure,
+table {
+  margin: 0;
+}
+
+body {
+  min-height: 100vh;
+  background-color: var(--papel);
+  /* Grano de papel: dos tramas muy tenues en angulo. Da textura sin ruido
+     visual y sin pedir una imagen al servidor. */
+  background-image:
+    repeating-linear-gradient(
+      31deg,
+      rgba(23, 21, 15, 0.016) 0 1px,
+      transparent 1px 4px
+    ),
+    repeating-linear-gradient(
+      121deg,
+      rgba(23, 21, 15, 0.012) 0 1px,
+      transparent 1px 5px
+    );
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+canvas {
+  display: block;
+  max-width: 100%;
+}
+
+button,
+input,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+/* Foco visible y consistente: el dashboard tiene que ser usable solo con
+   teclado, y el anillo por defecto de cada navegador no lo garantiza. */
+:focus-visible {
+  outline: 2px solid var(--bermellon);
+  outline-offset: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   Cabecera (cabezote de diario)
+   -------------------------------------------------------------------------- */
+.envoltura {
+  max-width: var(--ancho-maximo);
+  margin: 0 auto;
+  padding: 0 clamp(1rem, 4vw, 2.5rem);
+}
+
+.cabezote {
+  border-bottom: 3px double var(--tinta);
+  padding-block: clamp(1.25rem, 3vw, 2.25rem) 0.75rem;
+}
+
+.cabezote__fila {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.cabezote__titulo {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: clamp(2.1rem, 6vw, 3.4rem);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  font-variation-settings: "SOFT" 0, "WONK" 1;
+}
+
+.cabezote__titulo em {
+  font-style: normal;
+  color: var(--bermellon);
+}
+
+.cabezote__bajada {
+  margin-top: 0.4rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: var(--tinta-2);
+}
+
+.cabezote__fecha {
+  text-align: right;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--tinta-2);
+}
+
+.cabezote__fecha strong {
+  display: block;
+  font-weight: 600;
+  color: var(--tinta);
+}
+
+/* --------------------------------------------------------------------------
+   Navegacion
+   -------------------------------------------------------------------------- */
+.navegacion {
+  border-bottom: 1px solid var(--regla-fuerte);
+}
+
+.navegacion__lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.navegacion__enlace {
+  display: inline-block;
+  padding: 0.85rem 0 0.7rem;
+  border-bottom: 2px solid transparent;
+  color: var(--tinta-2);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  text-decoration: none;
+  transition: color 120ms ease, border-color 120ms ease;
+}
+
+.navegacion__enlace:hover {
+  color: var(--tinta);
+  border-bottom-color: var(--regla-fuerte);
+}
+
+.navegacion__enlace[aria-current="page"] {
+  color: var(--tinta);
+  border-bottom-color: var(--bermellon);
+  font-weight: 600;
+}
+
+.navegacion__enlace[aria-disabled="true"] {
+  color: var(--tinta-3);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.navegacion__etiqueta {
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.3rem;
+  border: 1px solid var(--regla-fuerte);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+}
+
+/* --------------------------------------------------------------------------
+   Barra de filtros: UNA fila sobre todo lo que condiciona
+   -------------------------------------------------------------------------- */
+.filtros {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1.1rem;
+  padding: 1rem 0 1.15rem;
+  border-bottom: 1px solid var(--regla);
+}
+
+.filtros__campo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.filtros__etiqueta {
+  font-size: 0.63rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--tinta-2);
+}
+
+.filtros input,
+.filtros select {
+  padding: 0.42rem 0.55rem;
+  border: 1px solid var(--regla-fuerte);
+  border-radius: var(--radio);
+  background: var(--papel-tarjeta);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.filtros__aviso {
+  flex-basis: 100%;
+  color: var(--bermellon);
+  font-size: 0.75rem;
+}
+
+.filtros__aviso:empty {
+  display: none;
+}
+
+/* --------------------------------------------------------------------------
+   Vistas
+   -------------------------------------------------------------------------- */
+.vista {
+  padding: clamp(1.5rem, 4vw, 2.5rem) 0 4rem;
+}
+
+.vista[hidden] {
+  display: none;
+}
+
+.pie {
+  padding: 1.25rem 0 2.5rem;
+  border-top: 1px solid var(--regla);
+  color: var(--tinta-3);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+/* --------------------------------------------------------------------------
+   Entrada escalonada. Un solo momento de animacion, al cargar la vista.
+   -------------------------------------------------------------------------- */
+@keyframes surgir {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.surge {
+  animation: surgir 420ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+.surge:nth-child(2) { animation-delay: 60ms; }
+.surge:nth-child(3) { animation-delay: 120ms; }
+.surge:nth-child(4) { animation-delay: 180ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

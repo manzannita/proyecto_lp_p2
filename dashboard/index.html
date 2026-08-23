@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NoticIA EC — Radar de tendencias en noticias ecuatorianas</title>
+  <meta name="description" content="Dashboard de tendencias tematicas en medios digitales ecuatorianos.">
+
+  <link rel="stylesheet" href="/static-dashboard/css/base.css">
+  <link rel="stylesheet" href="/static-dashboard/css/componentes.css">
+
+  <!--
+    ESTE ARCHIVO ES DEL ISSUE #6 Y NO SE EDITA DESDE LAS OTRAS VISTAS.
+
+    Las cuatro <section> de abajo estan VACIAS a proposito: cada vista genera
+    su propio DOM desde su modulo de js/vistas/. Es la regla anti-conflicto del
+    equipo -- si cada quien escribiera su marcado aqui, este archivo seria un
+    conflicto de merge permanente entre los issues #6, #7 y #8.
+
+    Chart.js va vendorizado y no por CDN para que el dashboard funcione sin
+    internet durante la sustentacion.
+  -->
+  <script src="/static-dashboard/vendor/chart.umd.min.js" defer></script>
+  <script type="module" src="/static-dashboard/js/main.js"></script>
+</head>
+
+<body>
+  <a class="visualmente-oculto" href="#contenido">Saltar al contenido</a>
+
+  <div class="envoltura">
+    <header class="cabezote">
+      <div class="cabezote__fila">
+        <div>
+          <h1 class="cabezote__titulo">Notic<em>IA</em> EC</h1>
+          <p class="cabezote__bajada">Radar de tendencias · medios digitales del Ecuador</p>
+        </div>
+        <p class="cabezote__fecha" id="dateline">
+          Periodo analizado
+          <strong id="dateline-periodo">todo el periodo recolectado</strong>
+        </p>
+      </div>
+
+      <nav class="navegacion" aria-label="Vistas del dashboard">
+        <ul class="navegacion__lista">
+          <li>
+            <a class="navegacion__enlace" href="#/tendencias" data-vista="tendencias">Temas más cubiertos</a>
+          </li>
+          <li>
+            <a class="navegacion__enlace" href="#/comparativa" data-vista="comparativa">Comparativa de medios</a>
+          </li>
+          <li>
+            <a class="navegacion__enlace" href="#/series" data-vista="series">Evolución semanal</a>
+          </li>
+          <li>
+            <a class="navegacion__enlace" href="#/buscador" data-vista="buscador">Buscador</a>
+          </li>
+          <li>
+            <!-- El backend del asistente ya existe (POST /api/asistente/preguntar),
+                 pero su pantalla es del avance 3. Se muestra deshabilitada para que
+                 el alcance del avance quede explicito en la interfaz. -->
+            <a class="navegacion__enlace" href="#/asistente" aria-disabled="true" tabindex="-1">
+              Asistente IA
+              <span class="navegacion__etiqueta">avance 3</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </header>
+
+    <form class="filtros" id="filtros" aria-label="Filtros globales">
+      <div class="filtros__campo">
+        <label class="filtros__etiqueta" for="filtro-desde">Desde</label>
+        <input type="date" id="filtro-desde" name="desde">
+      </div>
+
+      <div class="filtros__campo">
+        <label class="filtros__etiqueta" for="filtro-hasta">Hasta</label>
+        <input type="date" id="filtro-hasta" name="hasta">
+      </div>
+
+      <div class="filtros__campo">
+        <label class="filtros__etiqueta" for="filtro-medio">Medio</label>
+        <select id="filtro-medio" name="medio">
+          <option value="">Todos los medios</option>
+        </select>
+      </div>
+
+      <button class="boton boton--tenue" type="reset" id="filtro-limpiar">Limpiar</button>
+
+      <p class="filtros__aviso" id="filtros-aviso" role="status" aria-live="polite"></p>
+    </form>
+
+    <main id="contenido" role="main">
+      <section class="vista" id="vista-tendencias" aria-labelledby="titulo-tendencias" hidden></section>
+      <section class="vista" id="vista-comparativa" aria-labelledby="titulo-comparativa" hidden></section>
+      <section class="vista" id="vista-series" aria-labelledby="titulo-series" hidden></section>
+      <section class="vista" id="vista-buscador" aria-labelledby="titulo-buscador" hidden></section>
+    </main>
+
+    <footer class="pie">
+      NoticIA EC · Proyecto de Lenguajes de Programación — ESPOL ·
+      Datos recolectados de El Universo y Primicias vía RSS
+    </footer>
+  </div>
+</body>
+</html>
