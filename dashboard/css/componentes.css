@@ -1,0 +1,395 @@
+/* NoticIA EC - dashboard: componentes compartidos por las tres vistas.
+ *
+ * Cada vista (issues #6, #7 y #8) arma su DOM con estas clases en vez de
+ * inventar las suyas, para que el dashboard se lea como una sola pieza y no
+ * como tres tareas pegadas.
+ */
+
+/* --------------------------------------------------------------------------
+   Tarjeta
+   -------------------------------------------------------------------------- */
+.tarjeta {
+  border: 1px solid var(--regla-fuerte);
+  border-radius: var(--radio);
+  background: var(--papel-tarjeta);
+  padding: clamp(1rem, 2.5vw, 1.5rem);
+}
+
+.tarjeta__cabecera {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--regla);
+}
+
+.tarjeta__titulo {
+  font-family: var(--display);
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.tarjeta__pregunta {
+  margin-top: 0.3rem;
+  max-width: 62ch;
+  color: var(--tinta-2);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+/* --------------------------------------------------------------------------
+   Fichas de cifras (stat tiles)
+   -------------------------------------------------------------------------- */
+.cifras {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1px;                        /* el filete ES la separacion */
+  margin-bottom: var(--gap);
+  border: 1px solid var(--regla-fuerte);
+  border-radius: var(--radio);
+  background: var(--regla-fuerte); /* se ve por el gap de 1px */
+  overflow: hidden;
+}
+
+.cifra {
+  padding: 0.9rem 1.1rem 1rem;
+  background: var(--papel-tarjeta);
+}
+
+.cifra__rotulo {
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--tinta-2);
+}
+
+.cifra__valor {
+  margin-top: 0.35rem;
+  font-size: clamp(1.5rem, 3.5vw, 2rem);
+  font-weight: 600;
+  line-height: 1;
+  /* Cifras proporcionales a proposito: tabular-nums en un numero grande y
+     solitario deja huecos entre digitos. Las tablas y los ejes SI usan
+     tabular-nums, porque ahi los numeros se alinean en columna. */
+}
+
+/* Valor que es una palabra y no un numero: menos cuerpo, para que no se parta
+   en dos lineas y desbalancee la fila de fichas. */
+.cifra__valor--texto {
+  font-size: 1.05rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.cifra__nota {
+  margin-top: 0.3rem;
+  color: var(--tinta-3);
+  font-size: 0.68rem;
+}
+
+.cifra--alerta .cifra__valor,
+.cifra--alerta .cifra__nota {
+  color: var(--bermellon);
+}
+
+/* --------------------------------------------------------------------------
+   Sello de advertencia. Es el aviso de que el pipeline quedo atrasado, y
+   tiene que verse como un sello sobre el papel, no como un banner web.
+   -------------------------------------------------------------------------- */
+.sello {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.6rem;
+  margin-bottom: var(--gap);
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--bermellon);
+  border-left-width: 4px;
+  border-radius: var(--radio);
+  background: var(--bermellon-lavado);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.sello__titulo {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--bermellon);
+  white-space: nowrap;
+}
+
+.sello code {
+  padding: 0.1rem 0.35rem;
+  border: 1px solid rgba(168, 50, 26, 0.35);
+  background: var(--papel-tarjeta);
+  font-size: 0.76rem;
+}
+
+/* --------------------------------------------------------------------------
+   Grafico
+   -------------------------------------------------------------------------- */
+.grafico {
+  /* Alto propio del contenedor + maintainAspectRatio:false en Chart.js.
+     El alto incluye la banda de las etiquetas del eje: si se dimensiona solo
+     para el area de trazado, las etiquetas quedan cortadas o aparece un
+     scroll vertical minusculo dentro de la tarjeta. */
+  position: relative;
+  height: clamp(300px, 46vh, 460px);
+}
+
+.grafico--alto {
+  height: clamp(360px, 58vh, 560px);
+}
+
+/* Refetch: se mantiene el render anterior atenuado en vez de mostrar un
+   skeleton. Evita el parpadeo y el salto de layout al cambiar un filtro. */
+.esta-cargando {
+  opacity: 0.45;
+  transition: opacity 160ms ease;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   Tabla equivalente: el gemelo accesible de cada grafico.
+   Un <canvas> es invisible para un lector de pantalla; la tabla no.
+   -------------------------------------------------------------------------- */
+.tabla-datos {
+  margin-top: 1.25rem;
+  border-top: 1px solid var(--regla);
+  padding-top: 0.85rem;
+}
+
+.tabla-datos > summary {
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--tinta-2);
+}
+
+.tabla-datos > summary:hover {
+  color: var(--bermellon);
+}
+
+.tabla-envoltura {
+  margin-top: 0.85rem;
+  overflow-x: auto; /* el scroll horizontal vive DENTRO del contenedor */
+}
+
+table.datos {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+
+table.datos caption {
+  margin-bottom: 0.5rem;
+  color: var(--tinta-3);
+  font-size: 0.7rem;
+  text-align: left;
+}
+
+table.datos th,
+table.datos td {
+  padding: 0.4rem 0.7rem 0.4rem 0;
+  border-bottom: 1px solid var(--regla);
+  text-align: right;
+  white-space: nowrap;
+}
+
+table.datos th:first-child,
+table.datos td:first-child {
+  text-align: left;
+  white-space: normal;
+}
+
+table.datos thead th {
+  border-bottom: 1px solid var(--regla-fuerte);
+  color: var(--tinta-2);
+  font-size: 0.63rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+}
+
+table.datos tbody tr:hover {
+  background: var(--bermellon-lavado);
+}
+
+/* Marca de color de la serie junto a su fila: la identidad no puede
+   depender solo del color del grafico. */
+.marca-serie {
+  display: inline-block;
+  width: 0.65rem;
+  height: 0.65rem;
+  margin-right: 0.5rem;
+  border-radius: 2px;
+  vertical-align: baseline;
+}
+
+/* --------------------------------------------------------------------------
+   Estados: cargando, error, vacio, pendiente
+   -------------------------------------------------------------------------- */
+.estado {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.7rem;
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border: 1px dashed var(--regla-fuerte);
+  border-radius: var(--radio);
+  background: var(--papel-hueco);
+}
+
+.estado__titulo {
+  font-family: var(--display);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.estado__texto {
+  max-width: 60ch;
+  color: var(--tinta-2);
+  font-size: 0.82rem;
+}
+
+.estado--error {
+  border-style: solid;
+  border-color: var(--bermellon);
+}
+
+.estado--error .estado__titulo {
+  color: var(--bermellon);
+}
+
+.boton {
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--tinta);
+  border-radius: var(--radio);
+  background: var(--tinta);
+  color: var(--papel-tarjeta);
+  font-size: 0.7rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.boton:hover {
+  background: var(--bermellon);
+  border-color: var(--bermellon);
+}
+
+.boton--tenue {
+  background: transparent;
+  color: var(--tinta);
+  border-color: var(--regla-fuerte);
+}
+
+.boton--tenue:hover {
+  background: var(--bermellon-lavado);
+  color: var(--bermellon);
+  border-color: var(--bermellon);
+}
+
+/* Esqueleto solo para la PRIMERA carga, cuando no hay nada que atenuar. */
+.esqueleto {
+  border-radius: var(--radio);
+  background: linear-gradient(
+    100deg,
+    var(--papel-hueco) 30%,
+    rgba(255, 255, 255, 0.55) 50%,
+    var(--papel-hueco) 70%
+  );
+  background-size: 220% 100%;
+  animation: barrer 1.3s ease-in-out infinite;
+}
+
+.esqueleto--grafico {
+  height: clamp(300px, 46vh, 460px);
+}
+
+.esqueleto--cifras {
+  height: 96px;
+  margin-bottom: var(--gap);
+}
+
+@keyframes barrer {
+  from { background-position: 120% 0; }
+  to   { background-position: -20% 0; }
+}
+
+/* --------------------------------------------------------------------------
+   Grupo de controles propio de una vista (limite, temas, modo...).
+   Va DENTRO de la tarjeta: la barra de filtros global es una sola y vive
+   arriba de todo.
+   -------------------------------------------------------------------------- */
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.controles__rotulo {
+  font-size: 0.62rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--tinta-2);
+}
+
+.segmentado {
+  display: inline-flex;
+  border: 1px solid var(--regla-fuerte);
+  border-radius: var(--radio);
+  overflow: hidden;
+}
+
+.segmentado button {
+  padding: 0.3rem 0.7rem;
+  border: 0;
+  border-left: 1px solid var(--regla-fuerte);
+  background: var(--papel-tarjeta);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.segmentado button:first-child {
+  border-left: 0;
+}
+
+.segmentado button:hover {
+  background: var(--bermellon-lavado);
+}
+
+.segmentado button[aria-pressed="true"] {
+  background: var(--tinta);
+  color: var(--papel-tarjeta);
+  font-weight: 500;
+}
+
+/* Solo para lectores de pantalla */
+.visualmente-oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
