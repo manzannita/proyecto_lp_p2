@@ -1,13 +1,15 @@
 """Application factory de NoticIA EC.
 
-Los CUATRO blueprints se registran aqui de una vez, aunque tres empiecen
-vacios. Es a proposito: asi los issues #2 y #3 solo tocan su propio archivo de
-rutas y este archivo no genera conflictos de merge.
+TODOS los blueprints se registran aqui de una vez, aunque alguno empiece vacio.
+Es a proposito: asi cada issue solo toca su propio archivo de rutas y este
+archivo no genera conflictos de merge.
 
     /api/tendencias/top-temas        -> Annabella  (issue #1)
     /api/medios/*                    -> Valentina  (issue #2)
     /api/tendencias/series-semanales -> Cristian   (issue #3)
     /api/asistente/*                 -> Cristian   (issue #3)
+    /  y  /static-dashboard/*        -> Annabella  (issue #6, dashboard web)
+    /api/noticias                    -> Cristian   (issue #8, buscador)
 """
 
 from flask import Flask, jsonify
@@ -15,7 +17,9 @@ from flask import Flask, jsonify
 from backend import db
 from backend.config import obtener_config
 from backend.routes.asistente import asistente_bp
+from backend.routes.dashboard import dashboard_bp
 from backend.routes.medios import medios_bp
+from backend.routes.noticias import noticias_bp
 from backend.routes.series import series_bp
 from backend.routes.tendencias import tendencias_bp
 
@@ -35,6 +39,9 @@ def crear_app(testing: bool = False, database_url: str | None = None) -> Flask:
     app.register_blueprint(medios_bp, url_prefix="/api/medios")
     app.register_blueprint(series_bp, url_prefix="/api/tendencias")
     app.register_blueprint(asistente_bp, url_prefix="/api/asistente")
+    app.register_blueprint(noticias_bp, url_prefix="/api/noticias")
+    # Sin prefijo: el dashboard vive en la raiz para compartir origen con la API.
+    app.register_blueprint(dashboard_bp)
 
     app.teardown_appcontext(db.cerrar_conexion)
 
