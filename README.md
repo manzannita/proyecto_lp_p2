@@ -20,7 +20,8 @@ Base de datos           schema.sql   SQLite en desarrollo, PostgreSQL en producc
 Capa de procesamiento   backend/     Python + Flask + pandas
    y API                             clasifica, calcula tendencias y expone la API
         ▼
-Capa de presentación    dashboard/   Chart.js / Plotly  (avance posterior)
+Capa de presentación    dashboard/   HTML + JS nativo + Chart.js vendorizado
+                                     servido por Flask en el mismo origen
 ```
 
 ### Reparto del equipo
@@ -163,15 +164,101 @@ curl http://127.0.0.1:5000/health
 
 ### Seguridad
 
-**Todas** las rutas `/api/*` exigen el header `X-API-Key` con el valor de la
-variable de entorno `API_KEY`. Sin él responden `401` en JSON. La comparación usa
-`hmac.compare_digest`. Ninguna clave está en el código.
+**Todas** las rutas `/api/*` exigen la clave de `API_KEY`, presentada de una de
+dos formas: el header `X-API-Key` (clientes programáticos, `curl`, los tests) o
+la **cookie de sesión** que el servidor entrega junto con el dashboard
+(navegador). Sin ninguna de las dos responden `401` en JSON. La comparación usa
+`hmac.compare_digest` en ambos caminos. Ninguna clave está en el código, y
+tampoco en el JavaScript del dashboard — ver [Dashboard](#dashboard).
 
 ### Integridad de las transacciones
 
 Toda escritura pasa por el context manager `transaccion()` de `backend/db.py`:
 `COMMIT` al salir bien, `ROLLBACK` ante cualquier excepción. Todas las consultas
 usan placeholders `?`; nunca se concatena la entrada del usuario al SQL.
+
+## Dashboard
+
+Con el backend corriendo, el dashboard está en la raíz:
+
+```bash
+flask --app backend.app:crear_app run --port 5000
+# abrir http://127.0.0.1:5000/
+```
+
+**No hay paso de build.** Ni `npm install`, ni bundler, ni transpilación: son
+módulos ES nativos que el navegador carga directamente. Chart.js y las dos
+tipografías están **vendorizadas** en `dashboard/vendor/`, así que el dashboard
+se ve igual sin conexión a internet.
+
+### Vistas
+
+| Ruta | Pregunta de análisis | Visualización | Issue |
+|---|---|---|---|
+| `#/tendencias` | Los temas más cubiertos | Barras horizontales | [#6](../../issues/6) Annabella |
+| `#/comparativa` | Qué prioriza cada medio | Barras agrupadas | [#7](../../issues/7) Valentina |
+| `#/series` | Variación semana a semana | Líneas | [#8](../../issues/8) Cristian |
+| `#/buscador` | Búsqueda por tema o palabra clave | Lista paginada | [#8](../../issues/8) Cristian |
+
+La pantalla del asistente de IA aparece deshabilitada y etiquetada "avance 3":
+su endpoint ya existe, pero su interfaz no es parte de este avance.
+
+### La API key no vive en el JavaScript
+
+Si el JS del navegador mandara el header `X-API-Key`, la clave sería visible en
+DevTools y en el código fuente de la página, y la seguridad del avance 1
+quedaría en nada. En su lugar:
+
+1. `GET /` entrega el dashboard **y** deja la clave en una cookie `HttpOnly` +
+   `SameSite=Strict` (`backend/routes/dashboard.py`).
+2. `requiere_api_key` acepta la clave del header **o** de esa cookie
+   (`backend/auth.py`).
+3. El JS solo hace `fetch(url, { credentials: "same-origin" })` y nunca ve la
+   clave: `HttpOnly` la vuelve inalcanzable desde JavaScript, así que un XSS no
+   la puede exfiltrar, y `SameSite=Strict` impide que otro sitio provoque
+   peticiones autenticadas.
+
+> Los cuatro endpoints que consume el dashboard son `GET`. Cuando en el avance 3
+> se conecte `POST /api/asistente/preguntar` desde el navegador, ese POST
+> necesitará además un token CSRF o quedarse solo con el header.
+
+### Estructura y reparto
+
+```
+dashboard/
+├── index.html                shell: cabezote, nav, filtros y 4 secciones VACÍAS
+├── vendor/                   Chart.js 4.4.3 y las tipografías (sin CDN)
+├── css/  base.css            tokens, tipografía, layout
+│      componentes.css        tarjetas, fichas, tablas, estados
+└── js/
+    ├── api.js                único módulo que hace fetch
+    ├── estado.js             filtros globales sincronizados con la URL
+    ├── graficos.js           tema único de Chart.js y la paleta
+    ├── ui.js                 DOM, estados y formateo
+    ├── main.js               router por hash y contrato de vistas
+    └── vistas/               un archivo por persona
+```
+
+**Regla anti-conflicto:** `index.html` solo tiene las cuatro `<section>` vacías;
+cada vista genera su DOM desde su propio módulo de `js/vistas/`. Así los issues
+#6, #7 y #8 nunca editan el mismo archivo. El contrato que implementa cada vista
+(`montar` / `actualizar` / `desmontar`) está documentado al inicio de `main.js`.
+
+### Decisiones de visualización
+
+- **Paleta validada, no elegida a ojo.** Los ocho colores de serie
+  (`--serie-1..8` en `base.css`) pasan los chequeos de banda de luminosidad,
+  croma, contraste sobre el papel y separación para daltonismo protan/deutan; los
+  tres primeros la pasan incluso comparando todos los pares entre sí, así que una
+  vista puede superponer hasta tres series. El **orden es el mecanismo de
+  seguridad**: no se reordena ni se recicla, y un noveno tema va a `otros`.
+- **El color sigue a la entidad, no al ranking.** Una sola serie se pinta de un
+  solo color; teñir cada barra según su tamaño duplicaría en color lo que el
+  largo ya dice.
+- **Cada gráfico tiene su tabla equivalente.** Un `<canvas>` no existe para un
+  lector de pantalla, y el tooltip nunca puede ser la única forma de leer un dato.
+- **Los estados vacío y de error son parte de la vista**, con el mensaje que
+  manda el backend y un botón de reintento — nunca un gráfico en blanco.
 
 ## Endpoints de la API
 
@@ -413,22 +500,25 @@ proyecto_lp_p2/
 ├── .env.example
 ├── pytest.ini
 ├── backend/
-│   ├── app.py                 factory + registro de los 4 blueprints
+│   ├── app.py                 factory + registro de todos los blueprints
 │   ├── config.py              variables de entorno
 │   ├── db.py                  conexión, transaccion(), consultas
-│   ├── auth.py                decorador @requiere_api_key
+│   ├── auth.py                @requiere_api_key (header o cookie)
 │   ├── init_db.py             crea la base desde schema.sql
 │   ├── requirements.txt
 │   ├── routes/
 │   │   ├── tendencias.py      #1 Annabella
 │   │   ├── medios.py          #2 Valentina
 │   │   ├── series.py          #3 Cristian
-│   │   └── asistente.py       #3 Cristian
+│   │   ├── asistente.py       #3 Cristian
+│   │   ├── dashboard.py       #6 Annabella  sirve el dashboard + cookie
+│   │   └── noticias.py        #8 Cristian   buscador (stub)
 │   ├── pipeline/              #2 Valentina
 │   ├── services/              #3 Cristian
 │   └── tests/
 │       ├── conftest.py        fixtures compartidas
-│       └── test_tendencias.py
+│       └── test_*.py
+├── dashboard/                 frontend (ver la sección Dashboard)
 └── scraper/
     ├── scraper.rb             orquestador
     ├── Gemfile
@@ -440,6 +530,8 @@ proyecto_lp_p2/
     └── spec/                  RSpec + WebMock
 ```
 
-Los cuatro blueprints se registran de una vez en `app.py`, con `medios.py`,
-`series.py` y `asistente.py` como stubs. Así los issues #2 y #3 solo tocan su
-propio archivo de rutas y `app.py` no genera conflictos de merge.
+Todos los blueprints se registran de una vez en `app.py`, y el que todavía no
+está implementado entra como stub (así entraron `medios.py`, `series.py` y
+`asistente.py` en el avance 1, y así entra `noticias.py` en el avance 2). De esa
+forma cada issue solo toca su propio archivo de rutas y `app.py` no genera
+conflictos de merge.
