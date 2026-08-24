@@ -179,6 +179,24 @@ usan placeholders `?`; nunca se concatena la entrada del usuario al SQL.
 
 ## Dashboard
 
+### Vista: comparativa entre medios
+
+La pestaña `#/comparativa` responde qué temas priorizan de manera distinta El
+Universo y Primicias con barras agrupadas, una conclusión textual y una tabla de
+brechas. El control de normalización distingue entre el porcentaje dentro de la
+agenda de cada medio (lectura predeterminada) y el porcentaje sobre el volumen
+global. La selección múltiple de temas y el modo elegido quedan en el query
+string (`?temas=seguridad,economia&normalizar=false`), de modo que el análisis se
+puede recargar o compartir. El filtro global de medio se ignora deliberadamente
+porque esta vista siempre compara los dos medios.
+
+La misma pestaña incluye la auditoría del pre-procesamiento: cobertura total,
+clasificadas y pendientes, barras apiladas por medio y el peso de `otros`. Cada
+gráfico tiene una tabla equivalente y la nota metodológica aclara que los
+porcentajes usan solo noticias clasificadas y que los RSS no constituyen un
+archivo histórico completo. Si hay pendientes, la pantalla indica ejecutar
+`python -m backend.pipeline.procesar`.
+
 Con el backend corriendo, el dashboard está en la raíz:
 
 ```bash
