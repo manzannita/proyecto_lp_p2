@@ -1,0 +1,29 @@
+.comparativa-controles {
+  display: grid;
+  grid-template-columns: minmax(15rem, 1fr) minmax(15rem, 1fr);
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--regla);
+  background: var(--papel);
+}
+
+.comparativa-control { display: grid; gap: .5rem; }
+.comparativa-control label, .comparativa-toggle { font-family: var(--mono); font-weight: 600; }
+.comparativa-control select { min-height: 7.5rem; padding: .5rem; border: 1px solid var(--regla-fuerte); background: var(--papel-tarjeta); color: var(--tinta); }
+.comparativa-control small { color: var(--tinta-3); }
+.comparativa-toggle { display: flex; align-items: center; gap: .75rem; line-height: 1.4; }
+.comparativa-toggle input { inline-size: 1.2rem; block-size: 1.2rem; flex: 0 0 auto; }
+.conclusion { margin: 1rem 0; padding-left: 1rem; border-left: 4px solid var(--bermellon); font-family: var(--display); font-size: clamp(1.15rem, 2vw, 1.45rem); line-height: 1.35; }
+.grafico--comparativa { min-width: 42rem; }
+.subtitulo { margin: 1.5rem 0 .75rem; font-family: var(--display); font-size: 1.2rem; }
+.brecha-destacada th, .brecha-destacada td { font-weight: 700; background: color-mix(in srgb, var(--bermellon) 7%, var(--papel-tarjeta)); }
+.calidad-rejilla { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; margin-top: 1rem; }
+.nota-metodologica { margin-top: 1.5rem; padding: 1rem; border-top: 1px solid var(--regla-fuerte); background: var(--papel); }
+.nota-metodologica .subtitulo { margin-top: 0; }
+
+@media (max-width: 700px) {
+  .comparativa-controles, .calidad-rejilla { grid-template-columns: 1fr; }
+  .grafico--comparativa { min-width: 38rem; }
+  .tarjeta:has(.grafico--comparativa) { overflow-x: auto; }
+}
