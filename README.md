@@ -203,6 +203,61 @@ se ve igual sin conexión a internet.
 La pantalla del asistente de IA aparece deshabilitada y etiquetada "avance 3":
 su endpoint ya existe, pero su interfaz no es parte de este avance.
 
+### Vista: evolución semanal
+
+`dashboard/js/vistas/series.js` — gráfico de líneas sobre
+`GET /api/tendencias/series-semanales`, con dos modos que se eligen con un
+selector segmentado:
+
+- **Comparar temas**: hasta 3 temas del catálogo cerrado en el mismo gráfico,
+  una línea por tema. Cada tema pide su propio endpoint y las tres peticiones
+  van en paralelo con `Promise.all` (cada una cancela solo a la petición
+  anterior de ese mismo tema, no a las de los otros dos: `api.js` separa la
+  clave de cancelación por tema).
+- **Por medio**: fija un tema y compara sus líneas entre El Universo y
+  Primicias. Estas peticiones comparten tema y por lo tanto la misma clave de
+  cancelación en `api.js`, así que se piden en secuencia y no en paralelo —
+  pedirlas en paralelo haría que cada una cancelara a la anterior antes de
+  que llegara su respuesta.
+
+Cada línea trae su propia tarjeta de KPI (total del periodo, promedio
+semanal, semana pico y variación de la última semana), con "sin dato
+suficiente" cuando el backend manda `null` en vez de inventar un porcentaje.
+La última semana de cada serie se dibuja con el tramo final punteado —nunca
+sólida— porque casi siempre está incompleta y una caída ahí no es una
+tendencia real. Como la leyenda por defecto de Chart.js queda vacía en
+cualquier gráfico con más de una serie (el tema global de `graficos.js`
+reemplaza `plugins.legend.labels` sin volver a definir su `generateLabels`),
+la vista dibuja su propia leyenda en HTML combinando color, forma del
+marcador y el nombre del tema o medio, para que identificar una línea nunca
+dependa solo del color.
+
+Hacer clic en un punto del gráfico navega al buscador (`#/buscador`) ya
+filtrado por ese tema (o medio) y esa semana — es el enlace verificable entre
+un pico de la serie y las noticias concretas que lo produjeron. La vista
+también expone una `<table>` con las mismas semanas y totales, asociada al
+`<canvas>` para que el gráfico tenga un equivalente accesible.
+
+### Vista: buscador
+
+`dashboard/js/vistas/buscador.js` — consume `GET /api/noticias` con un campo
+de texto (debounce de 300 ms) y selectores de tema, medio y rango de fechas.
+El campo de búsqueda y el selector de tema se guardan en el query string
+(`?q=&tema=&pagina=`); el rango de fechas y el medio son los filtros
+globales que ya gestiona `estado.js` y por eso la vista reacciona a ellos
+sin suscribirse por su cuenta — `main.js` ya llama a `actualizar()` en cada
+cambio.
+
+Cada resultado se arma con `el()` de `ui.js`, nunca con `innerHTML`: el
+titular y el resumen vienen de sitios externos y son entrada no confiable.
+El término buscado se resalta dentro del titular y el resumen envolviendo
+las coincidencias en `<mark>` mediante nodos de texto (comparando el texto
+normalizado —minúsculas y sin tildes, igual que el backend— mientras se
+inserta el texto original). El titular enlaza al artículo original con
+`target="_blank"` y `rel="noopener noreferrer"`. Una región `aria-live` anuncia
+el número de resultados, y el estado "sin resultados" sugiere ampliar el
+rango o quitar un filtro en vez de mostrar una lista vacía sin explicación.
+
 ### La API key no vive en el JavaScript
 
 Si el JS del navegador mandara el header `X-API-Key`, la clave sería visible en
@@ -372,6 +427,72 @@ Errores: `400` si falta `tema`, si una fecha no parsea, si `desde > hasta` o
 si el `medio` no existe. `404` si el slug de `tema` no está en el catálogo.
 `401` sin API key. Un tema válido sin noticias en el rango responde `200` con
 `"serie": []`, no `404`.
+
+### `GET /api/noticias` — Cristian (issue #8)
+
+Buscador de noticias por palabra clave y/o filtros de catálogo. Es el
+respaldo verificable del gráfico de `series-semanales`: permite pasar de un
+pico en la serie a las noticias concretas que lo produjeron.
+
+| Parámetro | Tipo | Valor por defecto | Descripción |
+|---|---|---|---|
+| `q` | texto | — | opcional, mínimo 2 caracteres; busca en `titular` y `resumen` |
+| `tema` | slug | todos | opcional |
+| `medio` | slug | todos | opcional |
+| `desde` | `YYYY-MM-DD` | — | opcional |
+| `hasta` | `YYYY-MM-DD` | — | opcional |
+| `pagina` | int | `1` | ≥ 1 |
+| `por_pagina` | int | `20` | entre 1 y 50 |
+
+```bash
+curl -H "X-API-Key: $API_KEY" \
+  "http://127.0.0.1:5000/api/noticias?q=extorsion&tema=seguridad&pagina=1&por_pagina=20"
+```
+
+```json
+{
+  "total": 137,
+  "pagina": 1,
+  "por_pagina": 20,
+  "paginas": 7,
+  "noticias": [
+    {
+      "id": 1,
+      "titular": "Fiscalía investiga caso de extorsión en el norte",
+      "resumen": "...",
+      "url": "https://...",
+      "medio": "El Universo",
+      "medio_slug": "el-universo",
+      "tema": "Seguridad",
+      "tema_slug": "seguridad",
+      "fecha_publicacion": "2026-08-21 14:03:00"
+    }
+  ]
+}
+```
+
+**Búsqueda sin tildes y sin distinguir mayúsculas.** `q` se compara contra
+`titular`/`resumen` normalizando ambos lados (minúsculas y sin diacríticos
+vía `unicodedata.normalize("NFKD", ...)`) con una función registrada en la
+conexión SQLite (`conexion.create_function`), porque el motor no trae un
+`unaccent()` de fábrica. Buscar `economia` encuentra "económica" y viceversa.
+
+**SQL parametrizado, sin excepción.** El `LIKE` va con placeholders y el
+comodín se arma en el parámetro (`f"%{termino}%"`), nunca interpolado en el
+string del SQL; además se escapan `%`, `_` y `\` de la entrada del usuario
+para que no actúen como comodines silenciosos dentro del patrón.
+
+`total` se calcula con un `COUNT(*)` que reutiliza exactamente los mismos
+filtros que la consulta paginada, para que `paginas` siempre coincida con
+`ceil(total / por_pagina)`. El orden es `fecha_publicacion DESC, id DESC`: el
+desempate por `id` no es cosmético — sin él, dos noticias con la misma fecha
+pueden duplicarse o desaparecer al cambiar de página.
+
+Errores: `400` si `q` tiene menos de 2 caracteres, si `pagina` es menor a 1,
+si `por_pagina` está fuera de 1–50, si una fecha no parsea, si `desde > hasta`
+o si `tema`/`medio` no existen en el catálogo (el mensaje incluye el valor
+rechazado). `401` sin API key. Sin coincidencias responde `200` con
+`"noticias": []` y `"total": 0`, nunca `404`.
 
 ### `POST /api/asistente/preguntar` — Cristian (issue #3)
 
