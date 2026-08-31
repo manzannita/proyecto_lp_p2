@@ -13,6 +13,10 @@
   border-radius: var(--radio);
   background: var(--papel-tarjeta);
   padding: clamp(1rem, 2.5vw, 1.5rem);
+  /* Sombra DURA y desplazada, sin difuminado: una sombra suave leeria como
+     tarjeta de aplicacion web. Esta lee como una hoja apoyada sobre otra, que
+     es lo que la tarjeta pretende ser. */
+  box-shadow: 3px 3px 0 rgba(23, 21, 15, 0.045);
 }
 
 .tarjeta__cabecera {
@@ -26,12 +30,16 @@
   border-bottom: 1px solid var(--regla);
 }
 
+/* Titular de la vista. Va grande a proposito: es el segundo escalon de la
+   jerarquia (cabezote -> seccion -> titular -> entradilla -> datos) y a 1.35rem
+   competia de igual a igual con los rotulos de las fichas de cifras. */
 .tarjeta__titulo {
   font-family: var(--display);
-  font-size: 1.35rem;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: -0.01em;
+  font-size: clamp(1.7rem, 3.2vw, 2.25rem);
+  font-weight: 700;
+  line-height: 1.03;
+  letter-spacing: -0.022em;
+  font-variation-settings: "SOFT" 0, "WONK" 1;
 }
 
 .tarjeta__pregunta {
@@ -40,6 +48,21 @@
   color: var(--tinta-2);
   font-size: 0.78rem;
   line-height: 1.5;
+}
+
+/* ENTRADILLA. La distincion es del sistema, no un capricho:
+     - dentro de la cabecera, .tarjeta__pregunta es la PREGUNTA DE ANALISIS que
+       la vista existe para responder -> serif, cuerpo de entradilla;
+     - suelta en el cuerpo, es un HALLAZGO derivado de los datos o una nota al
+       pie -> se queda en mono, como el resto de lo funcional.
+   Asi la tipografia dice de que tipo de frase se trata antes de leerla. */
+.tarjeta__cabecera .tarjeta__pregunta {
+  max-width: 52ch;
+  margin-top: 0.5rem;
+  font-family: var(--display);
+  font-size: 1rem;
+  line-height: 1.42;
+  letter-spacing: 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -169,11 +192,33 @@
 
 .tabla-datos > summary {
   cursor: pointer;
+  list-style: none; /* fuera el triangulo del navegador */
+  /* Declarada y no heredada: este sumario tambien vive dentro de la respuesta
+     del asistente, donde el contexto es serif. Es un control, va en mono. */
+  font-family: var(--mono);
   font-size: 0.66rem;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.15em;
   color: var(--tinta-2);
+}
+
+.tabla-datos > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Signo de indice tipografico en vez del triangulo: mas cerca de un sumario
+   impreso, y el estado abierto/cerrado se lee igual de claro. */
+.tabla-datos > summary::before {
+  content: "+";
+  display: inline-block;
+  width: 1.1em;
+  color: var(--bermellon);
+  font-weight: 600;
+}
+
+.tabla-datos[open] > summary::before {
+  content: "−";
 }
 
 .tabla-datos > summary:hover {
@@ -185,9 +230,17 @@
   overflow-x: auto; /* el scroll horizontal vive DENTRO del contenedor */
 }
 
+/* Las fuentes del asistente cuelgan del mismo <details> pero sin envoltura de
+   tabla, asi que necesitan el mismo aire bajo el sumario. Sin esto la primera
+   fuente queda pegada al "Ver las N noticias...". */
+.tabla-datos > .notas {
+  margin-top: 0.85rem;
+}
+
 table.datos {
   width: 100%;
   border-collapse: collapse;
+  font-family: var(--mono);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
 }
@@ -379,6 +432,308 @@ table.datos tbody tr:hover {
   background: var(--tinta);
   color: var(--papel-tarjeta);
   font-weight: 500;
+}
+
+
+
+/* --------------------------------------------------------------------------
+   Fichas de seleccion: los temas que se superponen en el grafico de series.
+   Son botones de dos estados (aria-pressed), no enlaces ni checkboxes con
+   apariencia de chip -- el estado tiene que ser legible por el lector de
+   pantalla y por el ojo con la misma claridad.
+   -------------------------------------------------------------------------- */
+.fichas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.ficha {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--regla-fuerte);
+  border-radius: var(--radio);
+  background: var(--papel-tarjeta);
+  color: var(--tinta-3);
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+/* Ficha SIN aria-pressed: no es un interruptor, es un boton de accion (las
+   preguntas sugeridas del asistente). Tiene que leerse disponible -- con el
+   gris de "no seleccionado" de los toggles parecia deshabilitada. */
+.ficha:not([aria-pressed]) {
+  color: var(--tinta-2);
+}
+
+.ficha:hover:not(:disabled) {
+  border-color: var(--tinta-3);
+  color: var(--tinta-2);
+}
+
+/* Va DESPUES del hover generico: misma especificidad, gana el ultimo. */
+.ficha:not([aria-pressed]):hover {
+  border-color: var(--bermellon);
+  background: var(--bermellon-lavado);
+  color: var(--tinta);
+}
+
+/* Seleccionado = entintado. La diferencia NO se deja solo en el color del
+   punto: quien no distingue el color sigue viendo el borde oscuro y el peso
+   de la tipografia. */
+.ficha[aria-pressed="true"] {
+  border-color: var(--tinta);
+  color: var(--tinta);
+  font-weight: 500;
+}
+
+/* Tope de temas alcanzado. Deshabilitado y NO oculto: el usuario tiene que
+   ver que el tema existe y por que no lo puede agregar (el title lo explica). */
+.ficha:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+
+
+/* Variante de .controles para cuando el grupo envuelve en varias lineas: el
+   rotulo va ARRIBA y no al costado, o queda colgado junto a la primera fila. */
+.controles--bloque {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
+}
+
+
+
+
+
+
+/* --------------------------------------------------------------------------
+   Notas: las noticias una por una. Columna de lectura angosta y filete entre
+   piezas, como una seccion de breves -- no tarjetas sueltas flotando.
+   -------------------------------------------------------------------------- */
+.notas {
+  display: flex;
+  flex-direction: column;
+}
+
+.nota {
+  padding: 0.9rem 0;
+  border-top: 1px solid var(--regla);
+}
+
+.nota:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.nota__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--mono);
+  margin-bottom: 0.35rem;
+  color: var(--tinta-3);
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+}
+
+.nota__medio {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--tinta-2);
+}
+
+.nota__titular {
+  font-family: var(--display);
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.nota__titular a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.nota__titular a:hover {
+  border-bottom-color: var(--bermellon);
+}
+
+
+
+
+
+/* --------------------------------------------------------------------------
+   Controles de formulario dentro de una vista. Los de la barra global ya se
+   estilan en base.css (.filtros input); estos son los que arman las vistas.
+   -------------------------------------------------------------------------- */
+.asistente__forma textarea {
+  width: 100%;
+  padding: 0.42rem 0.55rem;
+  border: 1px solid var(--regla-fuerte);
+  border-radius: var(--radio);
+  background: var(--papel-tarjeta);
+  font: inherit;
+  font-size: 0.82rem;
+  color: inherit;
+}
+
+/* --------------------------------------------------------------------------
+   Asistente de IA
+   -------------------------------------------------------------------------- */
+.asistente__forma {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+}
+
+.asistente__forma textarea {
+  /* Solo vertical: el ancho lo manda la tarjeta y dejar redimensionar a lo
+     ancho rompe el layout de la columna. */
+  resize: vertical;
+  min-height: 4.5rem;
+  line-height: 1.5;
+}
+
+.asistente__pie {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.asistente__ayuda {
+  flex: 1 1 auto;
+  color: var(--tinta-3);
+  font-size: 0.68rem;
+}
+
+.asistente__contador {
+  color: var(--tinta-3);
+  font-size: 0.68rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Tope alcanzado: el textarea ya no acepta mas (maxlength), asi que el
+   contador tiene que explicar por que dejo de escribirse. */
+.asistente__contador--tope {
+  color: var(--bermellon);
+  font-weight: 500;
+}
+
+/* Peticion en vuelo. Sin esto el boton sigue viendose clickeable mientras el
+   LLM piensa, que puede ser medio minuto. */
+.boton:disabled {
+  opacity: 0.5;
+  cursor: progress;
+}
+
+/* --------------------------------------------------------------------------
+   Hilo de la conversacion. Del turno mas nuevo al mas viejo, como un teletipo
+   que imprime hacia abajo -- lo recien preguntado no obliga a bajar scroll.
+   -------------------------------------------------------------------------- */
+.hilo {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-top: 1.25rem;
+}
+
+.turno {
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--regla);
+}
+
+/* La pregunta es del usuario y la respuesta del sistema: la diferencia se
+   marca con el filete al margen y la tipografia, no con burbujas de chat.
+   Esto es una sala de redaccion, no una app de mensajeria. */
+.turno__pregunta {
+  padding-left: 0.85rem;
+  border-left: 3px solid var(--bermellon);
+  font-family: var(--display);
+  font-size: 1.02rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+/* La respuesta va en la SERIF y no en la mono. El sistema dice mono para todo
+   lo funcional -- rotulos, cifras, ejes, tablas -- y serif para lo editorial;
+   cuatro lineas de prosa redactada son lo mas editorial que hay en la
+   aplicacion, y en mono se leen como la salida de una terminal. Ademas es lo
+   que hace que la capitular de mas abajo tenga sentido: una capitular serif
+   sobre un parrafo monoespaciado es una contradiccion tipografica. */
+.turno__respuesta {
+  margin-top: 0.85rem;
+  max-width: 64ch;
+  font-family: var(--display);
+  font-size: 1.02rem;
+  line-height: 1.6;
+}
+
+.turno__respuesta p + p {
+  margin-top: 0.7rem;
+}
+
+/* Capitular. Es el detalle que hace que la respuesta se lea como un texto
+   impreso y no como el globo de un chat, y es la unica licencia editorial de
+   toda la interfaz -- por eso va aca y en ningun otro lado.
+   Se excluye el parrafo de espera: una capitular sobre "Consultando..." la
+   pondria a bailar con la animacion. El estado de error no la recibe porque
+   su parrafo vive dentro de .estado, no como hijo directo. */
+.turno__respuesta > p:first-of-type:not(.turno__pensando)::first-letter {
+  float: left;
+  /* Dos lineas de alto: el margen inferior negativo sube la segunda linea
+     hasta ras de la capitular en vez de dejarla flotando. */
+  margin: 0.06em 0.06em -0.06em 0;
+  font-size: 3.05em;
+  font-weight: 700;
+  line-height: 0.82;
+  color: var(--bermellon);
+  font-variation-settings: "SOFT" 0, "WONK" 1;
+}
+
+/* Vuelve a la mono: la procedencia de la respuesta es un dato, no prosa. */
+.turno__meta {
+  margin-top: 0.9rem;
+  font-family: var(--mono);
+  color: var(--tinta-3);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+}
+
+/* Espera del proveedor. Se anima la opacidad y no un spinner: el punto es
+   comunicar "sigo vivo" sin agregar una pieza grafica ajena al concepto. */
+/* Sin italica: ni Fraunces ni Plex Mono estan vendorizadas con cursiva, asi
+   que el navegador la sintetizaria inclinando la recta -- y eso se nota. La
+   espera se distingue con la mono, el color y el latido. */
+.turno__pensando {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  color: var(--tinta-2);
+  animation: latido 1.4s ease-in-out infinite;
+}
+
+@keyframes latido {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.45; }
+}
+
+/* Quien pidio menos movimiento en el sistema no deberia tener que aguantar
+   un texto que respira toda la espera. */
+@media (prefers-reduced-motion: reduce) {
+  .turno__pensando {
+    animation: none;
+  }
 }
 
 /* Solo para lectores de pantalla */

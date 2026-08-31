@@ -152,6 +152,13 @@ select {
   color: inherit;
 }
 
+/* Texto seleccionado: el azul del sistema es lo unico del navegador que
+   atraviesa la paleta entera. Se reemplaza por el lavado de bermellon. */
+::selection {
+  background: rgba(168, 50, 26, 0.18);
+  color: var(--tinta);
+}
+
 /* Foco visible y consistente: el dashboard tiene que ser usable solo con
    teclado, y el anillo por defecto de cada navegador no lo garantiza. */
 :focus-visible {
@@ -203,17 +210,32 @@ select {
   color: var(--tinta-2);
 }
 
+/* Folio del diario: el bloque estampado donde un broadsheet imprime edicion y
+   fecha. Va encajonado y con el filete grueso arriba porque el periodo es el
+   dato que condiciona TODO lo que se ve abajo; en versalitas de 0.7rem se leia
+   como un pie de pagina. */
 .cabezote__fecha {
+  align-self: flex-end;
+  padding: 0.4rem 0.7rem 0.5rem;
+  border: 1px solid var(--regla-fuerte);
+  border-top: 2px solid var(--tinta);
+  background: rgba(248, 246, 240, 0.55);
   text-align: right;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: var(--tinta-2);
+  letter-spacing: 0.16em;
+  color: var(--tinta-3);
 }
 
+/* El valor sale de las versalitas y pasa a la serif: es contenido, no rotulo. */
 .cabezote__fecha strong {
   display: block;
+  margin-top: 0.15rem;
+  font-family: var(--display);
+  font-size: 0.95rem;
   font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--tinta);
 }
 
@@ -231,6 +253,7 @@ select {
   margin: 0;
   padding: 0;
   list-style: none;
+  counter-reset: seccion;
 }
 
 .navegacion__enlace {
@@ -246,9 +269,27 @@ select {
   transition: color 120ms ease, border-color 120ms ease;
 }
 
+/* Numeral de seccion (01, 02, ...) como en el sumario de un diario. Se genera
+   con un contador de CSS y no con marcado: index.html no tiene que saber en
+   que orden quedaron las vistas, y agregar una no obliga a renumerar nada. */
+.navegacion__enlace::before {
+  counter-increment: seccion;
+  content: counter(seccion, decimal-leading-zero);
+  margin-right: 0.45rem;
+  color: var(--tinta-3);
+  font-size: 0.62rem;
+  font-weight: 400;
+  transition: color 120ms ease;
+}
+
 .navegacion__enlace:hover {
   color: var(--tinta);
   border-bottom-color: var(--regla-fuerte);
+}
+
+.navegacion__enlace:hover::before,
+.navegacion__enlace[aria-current="page"]::before {
+  color: var(--bermellon);
 }
 
 .navegacion__enlace[aria-current="page"] {
@@ -263,13 +304,6 @@ select {
   pointer-events: none;
 }
 
-.navegacion__etiqueta {
-  margin-left: 0.4rem;
-  padding: 0.1rem 0.3rem;
-  border: 1px solid var(--regla-fuerte);
-  font-size: 0.6rem;
-  letter-spacing: 0.08em;
-}
 
 /* --------------------------------------------------------------------------
    Barra de filtros: UNA fila sobre todo lo que condiciona
@@ -366,5 +400,126 @@ select {
     animation-duration: 0.01ms !important;
     animation-delay: 0ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Impresion
+   --------------------------------------------------------------------------
+   Un dashboard cuyo concepto es papel impreso tiene que poder imprimirse de
+   verdad. Y no es solo coherencia estetica: los graficos y las tablas de este
+   dashboard son la evidencia del informe final, asi que "Imprimir -> Guardar
+   como PDF" tiene que dar una pagina presentable sin capturas de pantalla.
+
+   Lo que se va: la navegacion (en papel no se navega), los filtros (el estado
+   ya quedo impreso en el folio del cabezote) y los botones. Lo que se queda:
+   el cabezote, la vista activa y sus datos. Las vistas inactivas ya estan en
+   [hidden], asi que no hace falta ocultarlas aparte.
+   -------------------------------------------------------------------------- */
+@media print {
+  @page {
+    margin: 16mm 14mm;
+  }
+
+  body {
+    /* El grano y el papel crema se van: en papel real el papel ya es el papel,
+       y una trama de fondo solo gasta toner y ensucia el gris de las barras. */
+    background: #fff;
+    background-image: none;
+    font-size: 10.5pt;
+  }
+
+  .navegacion,
+  .filtros,
+  .boton,
+  .segmentado,
+  .paginador,
+  .fichas,
+  .controles {
+    display: none !important;
+  }
+
+  .envoltura {
+    max-width: none;
+    padding: 0;
+  }
+
+  .vista {
+    padding: 0;
+  }
+
+  /* La tarjeta pierde el marco: en papel el borde de la caja compite con los
+     filetes de la tabla y del grafico, que son los que llevan la informacion. */
+  .tarjeta {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    box-shadow: none;
+  }
+
+  /* Nada de cortar un grafico o una noticia a la mitad entre dos hojas.
+     La .tarjeta NO entra en esta lista a proposito: es mas alta que media hoja,
+     asi que pedirle que no se corte la empuja entera a la pagina siguiente y
+     deja la primera medio vacia. Se deja fluir, y lo que se protege son las
+     piezas que de verdad no se pueden partir. */
+  .cifras,
+  .grafico,
+  .nota,
+  .turno,
+  .tarjeta__cabecera,
+  table.datos tr {
+    break-inside: avoid;
+  }
+
+  /* El cabezote no necesita el aire que se da en pantalla: el margen de @page
+     ya separa del borde del papel. */
+  .cabezote {
+    padding-block: 0 0.6rem;
+  }
+
+  /* EN PAPEL MANDA LA TABLA, NO EL GRAFICO.
+     El <canvas> no se imprime, y la decision es deliberada. Chart.js redibuja
+     de forma asincrona cuando cambia el ancho del contenedor, y la paginacion
+     del navegador es sincrona: al imprimir, la hoja es mas angosta que la
+     pantalla y el snapshot sale con las barras a medio redibujar (probado:
+     salen de ancho cero contra el eje). Se puede forzar un resize en
+     beforeprint, pero el resultado sigue dependiendo de quien gane la carrera,
+     y un grafico que a veces sale bien y a veces sale vacio es peor que no
+     imprimirlo.
+     No se pierde nada: la tabla equivalente lleva los MISMOS numeros y es la
+     unica forma de auditarlos en papel -- un canvas impreso no se puede medir
+     con una regla. Por eso aca se esconde el grafico y se abre la tabla (lo
+     segundo lo hace beforeprint en main.js, porque un <details> cerrado no lo
+     abre ningun CSS). Para llevar la IMAGEN del grafico al informe, la captura
+     de pantalla del dashboard es la herramienta correcta. */
+  .grafico,
+  .grafico--alto {
+    display: none;
+  }
+
+  /* El sumario no tiene nada que desplegar en papel: la tabla ya viene abierta. */
+  .tabla-datos > summary {
+    display: none;
+  }
+
+  .tabla-datos {
+    margin-top: 0;
+    border-top: 0;
+  }
+
+
+  /* El destino de un enlace no se ve en papel: se imprime al lado. */
+  .nota__titular a::after {
+    content: " · " attr(href);
+    font-family: var(--mono);
+    font-size: 8pt;
+    font-weight: 400;
+    color: #555;
+    word-break: break-all;
+  }
+
+  /* Sin animaciones de entrada: en papel solo dejarian el estado inicial. */
+  .surge {
+    animation: none;
   }
 }
