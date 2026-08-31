@@ -307,8 +307,25 @@ function irABuscadorFiltrado({ temaSlug, medioSlug, semanaInicio }) {
 
   const params = new URLSearchParams(window.location.search);
   params.set("tema", temaSlug);
-  const url = `${window.location.pathname}?${params.toString()}#/buscador`;
-  window.history.replaceState(null, "", url);
+  // pagina no se hereda: si la URL venia con ?pagina=4 de una busqueda
+  // anterior, el buscador abriria en la pagina 4 de un resultado nuevo y
+  // mostraria "sin resultados" para una semana que si tiene noticias.
+  params.delete("pagina");
+
+  // El orden importa y antes estaba al revés, con el resultado de que este
+  // clic NO navegaba nunca. replaceState no dispara hashchange pero SI cambia
+  // location.hash, asi que al asignar despues el mismo valor el setter de
+  // Location.hash corta por su primer paso normativo ("si el fragment nuevo es
+  // igual al actual, retornar"): main.js no recibia el evento y la vista de
+  // series se quedaba en pantalla con los filtros cambiados.
+  //
+  // Ahora se escriben primero los parametros CONSERVANDO el hash actual, y
+  // recien despues se cambia el hash, que es lo unico que dispara hashchange.
+  window.history.replaceState(
+    null,
+    "",
+    `${window.location.pathname}?${params.toString()}${window.location.hash}`
+  );
   window.location.hash = "#/buscador";
 }
 

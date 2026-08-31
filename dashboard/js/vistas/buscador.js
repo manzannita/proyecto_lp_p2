@@ -83,6 +83,42 @@ function normalizarTexto(texto) {
   return Array.from(texto).map(normalizarCaracter).join("");
 }
 
+/**
+ * Texto normalizado MAS el mapa de posiciones al texto original.
+ *
+ * Normalizar caracter por caracter no alcanza para mantener los indices
+ * alineados, que es lo que el comentario de arriba daba por sentado: NFKD
+ * EXPANDE algunos caracteres. "…" se convierte en "..." (+2) y "½" en "1⁄2"
+ * (+2), y los puntos suspensivos son frecuentisimos en los resumenes de RSS
+ * truncados. Con el desfase, el <mark> quedaba corrido:
+ *
+ *   "Alerta…crece la inseguridad"  buscando "seguridad"  ->  resaltaba "guridad e"
+ *
+ * y en el peor caso el cursor pasaba el largo del texto y se perdia el final.
+ *
+ * Por eso se devuelve tambien `mapa`: para cada posicion del texto normalizado,
+ * el indice del caracter ORIGINAL que la produjo.
+ */
+function normalizarConMapa(texto) {
+  let normalizado = "";
+  const mapa = [];
+  let indiceOriginal = 0;
+
+  for (const caracter of texto) {
+    const trozo = normalizarCaracter(caracter);
+    for (let i = 0; i < trozo.length; i += 1) mapa.push(indiceOriginal);
+    normalizado += trozo;
+    // Array.from/for-of recorre por punto de codigo: un emoji o un caracter
+    // fuera del BMP ocupa dos unidades en el string original.
+    indiceOriginal += caracter.length;
+  }
+
+  // Centinela: permite mapear el final de una coincidencia que termina en el
+  // ultimo caracter sin tratarlo como caso aparte.
+  mapa.push(texto.length);
+  return { normalizado, mapa };
+}
+
 /** Envuelve las coincidencias de `termino` dentro de `texto` en <mark>,
  *  case-insensitive y sin sensibilidad a tildes. Solo usa nodos de texto. */
 function resaltar(texto, termino) {
@@ -93,20 +129,23 @@ function resaltar(texto, termino) {
     return fragmento;
   }
 
-  const textoNormalizado = normalizarTexto(texto);
-  let cursor = 0;
-  let indice = textoNormalizado.indexOf(terminoNormalizado);
+  const { normalizado, mapa } = normalizarConMapa(texto);
+  let indice = normalizado.indexOf(terminoNormalizado);
   if (indice === -1) {
     fragmento.append(texto);
     return fragmento;
   }
 
+  // El cursor avanza sobre el texto ORIGINAL; los indices del normalizado se
+  // traducen con el mapa.
+  let cursor = 0;
   while (indice !== -1) {
-    if (indice > cursor) fragmento.append(texto.slice(cursor, indice));
-    const fin = indice + terminoNormalizado.length;
-    fragmento.append(el("mark", {}, texto.slice(indice, fin)));
-    cursor = fin;
-    indice = textoNormalizado.indexOf(terminoNormalizado, cursor);
+    const desde = mapa[indice];
+    const hasta = mapa[indice + terminoNormalizado.length];
+    if (desde > cursor) fragmento.append(texto.slice(cursor, desde));
+    fragmento.append(el("mark", {}, texto.slice(desde, hasta)));
+    cursor = hasta;
+    indice = normalizado.indexOf(terminoNormalizado, indice + terminoNormalizado.length);
   }
   if (cursor < texto.length) fragmento.append(texto.slice(cursor));
   return fragmento;
@@ -298,10 +337,17 @@ function pintarResultados(datos) {
     return;
   }
 
+  // Se comprueba antes de insertarlo: controlesDePaginacion devuelve null
+  // cuando hay una sola pagina, y Node.append(null) NO ignora el nulo -- lo
+  // convierte a la cadena "null" y la mete como nodo de texto. el() de ui.js
+  // si los filtra, pero este append es directo sobre el nodo. Se veia la
+  // palabra "null" debajo de los resultados en toda busqueda de una sola
+  // pagina, que con 131 noticias es casi cualquiera con un filtro puesto.
+  const paginacion = controlesDePaginacion(datos);
   limpiar(regionResultados).append(
-    el("ul", { estilo: { listStyle: "none", padding: "0", margin: "0" } }, datos.noticias.map(filaDeResultado)),
-    controlesDePaginacion(datos)
+    el("ul", { estilo: { listStyle: "none", padding: "0", margin: "0" } }, datos.noticias.map(filaDeResultado))
   );
+  if (paginacion) regionResultados.append(paginacion);
   regionAnuncio.textContent = `${datos.total} resultado${datos.total === 1 ? "" : "s"} encontrado${
     datos.total === 1 ? "" : "s"
   }.`;
@@ -316,6 +362,15 @@ async function buscarYPintar() {
   const regionResultados = document.getElementById("buscador-resultados");
   if (!regionResultados) return; // la vista ya se desmonto
 
+  // El backend exige 2 caracteres y responde 400. Sin esta guarda, escribir
+  // una sola letra pintaba "No se pudieron cargar los datos" -- un cuadro de
+  // error por escribir, que es justo lo que el aviso de longitud intenta
+  // evitar. Con un caracter simplemente no se busca.
+  if (q.length === 1) {
+    marcarCargando(regionResultados, false);
+    return;
+  }
+
   marcarCargando(regionResultados, true);
 
   let datos;
@@ -323,6 +378,12 @@ async function buscarYPintar() {
     datos = await api.buscarNoticias({ q, tema, medio, desde, hasta, pagina, porPagina: POR_PAGINA });
   } catch (error) {
     if (error.name === "AbortError") return;
+    // marcarCargando(false) ANTES de pintar el error. La clase .esta-cargando
+    // lleva pointer-events:none y esta puesta sobre regionResultados, no sobre
+    // un hijo, asi que mostrarError --que solo reemplaza los hijos-- la dejaba
+    // viva: el cuadro de error salia atenuado y el boton "Reintentar" no
+    // respondia al clic. La unica salida era tocar un filtro.
+    marcarCargando(regionResultados, false);
     mostrarError(regionResultados, { mensaje: error.message, alReintentar: buscarYPintar });
     return;
   }

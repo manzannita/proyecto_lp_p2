@@ -216,13 +216,44 @@ function armazon() {
    Hilo de la conversacion
    ------------------------------------------------------------------------- */
 
+/** Plural en castellano, sin el "(s)" de programador. */
+function plural(cantidad, singular, enPlural) {
+  return `${formatearNumero(cantidad)} ${cantidad === 1 ? singular : enPlural}`;
+}
+
+/**
+ * Convierte los **negritas** de markdown en nodos <strong>.
+ *
+ * El modelo estructura sus respuestas con markdown por su cuenta, y antes se
+ * veian los asteriscos literales en pantalla. NO se resuelve con innerHTML: la
+ * respuesta de un LLM es entrada no confiable como cualquier otra, asi que se
+ * parte el texto y se emiten nodos. Se reconoce solo la negrita, que es lo
+ * unico que el modelo usa de forma consistente; lo que no calce queda como
+ * texto plano, que es un peor caso aceptable.
+ */
+function conNegritas(texto) {
+  const nodos = [];
+  const patron = /\*\*(.+?)\*\*/g;
+  let ultimo = 0;
+  let calce;
+
+  while ((calce = patron.exec(texto)) !== null) {
+    if (calce.index > ultimo) nodos.push(texto.slice(ultimo, calce.index));
+    nodos.push(el("strong", { texto: calce[1] }));
+    ultimo = calce.index + calce[0].length;
+  }
+
+  if (ultimo < texto.length) nodos.push(texto.slice(ultimo));
+  return nodos.length ? nodos : [texto];
+}
+
 /** El texto del modelo viene con saltos de linea: se respetan como parrafos. */
 function parrafos(texto) {
   return String(texto || "")
     .split(/\n{2,}/)
     .map((bloque) => bloque.trim())
     .filter(Boolean)
-    .map((bloque) => el("p", { texto: bloque }));
+    .map((bloque) => el("p", {}, conNegritas(bloque)));
 }
 
 function fuente(nota) {
@@ -254,7 +285,9 @@ function fuentes(datos) {
     "details",
     { clase: "tabla-datos" },
     el("summary", {
-      texto: `Ver las ${formatearNumero(datos.fuentes.length)} noticia(s) que fundamentan la respuesta`,
+      texto:
+        `Ver ${plural(datos.fuentes.length, "la noticia", "las noticias")} ` +
+        `que fundamenta${datos.fuentes.length === 1 ? "" : "n"} la respuesta`,
     }),
     el("div", { clase: "notas" }, datos.fuentes.map(fuente))
   );
@@ -262,7 +295,8 @@ function fuentes(datos) {
 
 function pieDelTurno(datos) {
   const partes = [
-    `${formatearNumero(datos.noticias_consultadas)} noticia(s) consultada(s)`,
+    `${plural(datos.noticias_consultadas, "noticia", "noticias")} ` +
+      `consultada${datos.noticias_consultadas === 1 ? "" : "s"}`,
   ];
   // Sin modelo = el backend cortocircuito y nunca llamo al LLM. Se dice, para
   // que quede claro que esa respuesta no la escribio el modelo.

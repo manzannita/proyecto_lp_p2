@@ -304,7 +304,14 @@ const vista = {
     contenedor = nodo;
     primerRender = true;
     leerControlesDeUrl();
-    if (!document.querySelector("link[data-comparativa]")) {
+    // Se guarda la referencia SIEMPRE, tambien cuando el <link> ya estaba en
+     // el documento. Antes, si montar() encontraba uno existente, hojaEstilos
+     // quedaba en null y el hojaEstilos?.remove() de desmontar() no hacia
+     // nada: el CSS de comparativa se quedaba cargado para el resto de la
+     // sesion, y sus selectores (.subtitulo, .conclusion, .grafico--comparativa)
+     // son globales, asi que afectaban a las otras vistas.
+    hojaEstilos = document.querySelector("link[data-comparativa]");
+    if (!hojaEstilos) {
       hojaEstilos = el("link", { rel: "stylesheet", href: "/static-dashboard/css/comparativa.css", "data-comparativa": "" });
       document.head.append(hojaEstilos);
     }

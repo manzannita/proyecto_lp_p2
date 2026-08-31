@@ -91,6 +91,37 @@ document.addEventListener("noticia:periodo", (evento) => {
    Barra de filtros
    ------------------------------------------------------------------------- */
 
+/* Refleja el estado en los controles de la barra global.
+ *
+ * Hace falta porque una vista puede cambiar los filtros sin pasar por la barra:
+ * el buscador tiene sus propios campos de fecha y el grafico de series navega
+ * al buscador fijando un rango de una semana. Sin esto, la barra quedaba
+ * mostrando lo viejo, y como su handler de "change" lee los TRES inputs de una
+ * vez, el siguiente cambio en cualquiera de ellos reenviaba el valor obsoleto y
+ * BORRABA en silencio el filtro que la vista habia puesto.
+ *
+ * Se consultan por id en vez de capturar las referencias porque este
+ * suscriptor vive fuera de prepararFiltros().
+ */
+function sincronizarBarraDeFiltros(filtros) {
+  const porId = {
+    desde: document.getElementById("filtro-desde"),
+    hasta: document.getElementById("filtro-hasta"),
+    medio: document.getElementById("filtro-medio"),
+  };
+  for (const [campo, control] of Object.entries(porId)) {
+    if (!control || control.value === filtros[campo]) continue;
+    // El <select> de medios solo tiene las opciones que trajo el catalogo: si
+    // el filtro apunta a un slug que no esta, se deja como estaba en vez de
+    // vaciarlo, para no mentir sobre el filtro vigente.
+    if (control.tagName === "SELECT" && filtros[campo]) {
+      const existe = [...control.options].some((opcion) => opcion.value === filtros[campo]);
+      if (!existe) continue;
+    }
+    control.value = filtros[campo];
+  }
+}
+
 async function prepararFiltros() {
   const formulario = document.getElementById("filtros");
   const entradaDesde = document.getElementById("filtro-desde");
@@ -266,6 +297,7 @@ async function arrancar() {
   // vuelva a dibujar con el nuevo recorte.
   estado.suscribir(async (filtros) => {
     pintarDateline(filtros.desde, filtros.hasta);
+    sincronizarBarraDeFiltros(filtros);
     if (!vistaActiva) return;
     try {
       await vistaActiva.modulo.actualizar(filtros);

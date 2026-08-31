@@ -25,5 +25,25 @@
 @media (max-width: 700px) {
   .comparativa-controles, .calidad-rejilla { grid-template-columns: 1fr; }
   .grafico--comparativa { min-width: 38rem; }
-  .tarjeta:has(.grafico--comparativa) { overflow-x: auto; }
 }
+
+/* El scroll del grafico NO puede vivir en un breakpoint: hace falta siempre
+   que el ancho no alcance.
+
+   .grafico--comparativa pide 42rem (672px) de ancho minimo, y el ancho util
+   dentro de la tarjeta es ~0.87 del viewport (la envoltura resta 2x4vw y la
+   tarjeta 2x2.5vw), asi que se necesitan ~775px de viewport. La regla estaba
+   dentro del @media de 700px, o sea 75px por debajo de donde hace falta: entre
+   701 y 775 --un iPad vertical de 768px, por ejemplo-- el canvas se salia por
+   el borde derecho de la tarjeta, se cortaba el fondo y aparecia scroll
+   horizontal en TODA la pagina. Sacarla del @media es todo el arreglo.
+
+   El scroll va en la TARJETA y no en .grafico--comparativa porque ese div ES
+   el que lleva el min-width: un elemento no puede desbordar a su padre y a la
+   vez hacer scroll de si mismo. Efecto colateral conocido y aceptado: por la
+   especificacion de overflow, un eje en `auto` con el otro en `visible`
+   computa los dos a `auto`, asi que la tarjeta queda como contenedor de scroll
+   tambien en vertical. Es inocuo aca --no tiene alto fijo, asi que nunca
+   genera barra vertical, y no hay ningun position:sticky adentro-- pero
+   conviene saberlo si alguna vez se agrega uno. */
+.tarjeta:has(.grafico--comparativa) { overflow-x: auto; }
