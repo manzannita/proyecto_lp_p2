@@ -86,6 +86,12 @@ def comparativa():
         return jsonify({"error": f"No existe el tema '{invalidos[0]}'"}), 400
     slugs = list(dict.fromkeys(solicitados)) if solicitados else slugs_validos
 
+    # Sin temas en el catalogo, "t.slug IN ()" no es SQL valido y SQLite lanza
+    # OperationalError -> 500. Pasa en una base recien creada, antes de sembrar
+    # el catalogo, y la respuesta correcta es un 200 vacio.
+    if not slugs:
+        return jsonify({"periodo": {"desde": None, "hasta": None}, "medios": [], "brechas": []})
+
     condiciones = ["n.tema_id IS NOT NULL"]
     parametros: list[object] = []
     if desde:
@@ -111,10 +117,16 @@ def comparativa():
         tuple(parametros),
     )
 
-    primera = consultar("SELECT MIN(fecha_publicacion) AS fecha FROM noticias")[0]["fecha"]
+    # El periodo se deduce de los DATOS y no del reloj. Antes "hasta" caia en
+    # date.today() cuando no habia filtro, asi que el cabezote del dashboard
+    # afirmaba que los datos llegaban hasta hoy aunque la ultima noticia
+    # recolectada fuera de dos semanas antes. tendencias.py ya lo hacia bien.
+    limites = consultar(
+        "SELECT MIN(fecha_publicacion) AS primera, MAX(fecha_publicacion) AS ultima FROM noticias"
+    )[0]
     periodo = {
-        "desde": desde.isoformat() if desde else (primera[:10] if primera else None),
-        "hasta": hasta.isoformat() if hasta else date.today().isoformat(),
+        "desde": desde.isoformat() if desde else (limites["primera"] or "")[:10] or None,
+        "hasta": hasta.isoformat() if hasta else (limites["ultima"] or "")[:10] or None,
     }
     if not filas:
         return jsonify({"periodo": periodo, "medios": [], "brechas": []})
@@ -125,12 +137,42 @@ def comparativa():
         index="medio_slug", columns="tema", values="total", aggfunc="sum", fill_value=0
     ).reindex(index=[medio["slug"] for medio in medios], columns=slugs, fill_value=0)
 
-    total_global = int(pivote.to_numpy().sum())
+    # DENOMINADORES SIN EL FILTRO DE TEMAS.
+    #
+    # Antes se sumaba el pivote, que ya viene recortado a los temas pedidos, asi
+    # que el porcentaje se renormalizaba sobre la seleccion. Con ?temas=clima y
+    # una sola noticia de clima en El Universo, el endpoint informaba 100,0 %
+    # --lo real es 1/101, o sea ~1 %-- y el frontend lo redactaba como
+    # "El Universo dedica 100,0 puntos mas a Clima". Dos ordenes de magnitud de
+    # error presentados como conclusion editorial.
+    #
+    # La etiqueta que ve el usuario dice "% dentro de la agenda de cada medio",
+    # asi que el denominador tiene que ser la agenda COMPLETA del medio en el
+    # periodo, no el recorte tematico. Misma consulta, mismos filtros de fecha,
+    # sin la clausula de temas.
+    condiciones_sin_tema = [c for c in condiciones if not c.startswith("t.slug IN")]
+    parametros_sin_tema = tuple(parametros[: len(parametros) - len(slugs)])
+    totales_por_medio = {
+        fila["medio_slug"]: int(fila["total"])
+        for fila in consultar(
+            f"""
+            SELECT m.slug AS medio_slug, COUNT(*) AS total
+            FROM noticias n
+            JOIN medios m ON m.id = n.medio_id
+            JOIN temas t ON t.id = n.tema_id
+            WHERE {' AND '.join(condiciones_sin_tema)}
+            GROUP BY m.slug
+            """,
+            parametros_sin_tema,
+        )
+    }
+    total_global = sum(totales_por_medio.values())
     porcentajes: dict[tuple[str, str], float] = {}
     respuesta_medios = []
     for medio in medios:
         totales = pivote.loc[medio["slug"]]
-        total_medio = int(totales.sum())
+        # Agenda completa del medio en el periodo, no la suma del recorte.
+        total_medio = totales_por_medio.get(medio["slug"], 0)
         denominador = total_medio if normalizar else total_global
         temas_medio = []
         for slug in slugs:
