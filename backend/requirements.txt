@@ -12,7 +12,8 @@ pandas==2.2.2
 PyYAML==6.0.2
 
 # --- asistente de IA (issue #3) ---
-requests==2.32.3
+# Proveedor: Anthropic (Messages API) via el SDK oficial.
+anthropic==1.2.0
 
 # --- pruebas (los tres) ---
 pytest==8.3.3
