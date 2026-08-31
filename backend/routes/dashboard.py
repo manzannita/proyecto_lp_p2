@@ -14,7 +14,7 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, make_response, request, send_from_directory
 
-from backend.auth import COOKIE_SESION
+from backend.auth import COOKIE_CSRF, COOKIE_SESION, generar_token_csrf
 
 dashboard_bp = Blueprint("dashboard", __name__)
 
@@ -39,6 +39,22 @@ def shell():
         # Se deduce de la peticion en vez de leerse de una variable de entorno:
         # con Secure=True fijo, la cookie no se enviaria en el http://localhost
         # del desarrollo y el dashboard daria 401 sin explicacion aparente.
+        secure=request.is_secure,
+        path="/",
+    )
+
+    # Token CSRF del patron de doble envio (ver backend/auth.py). A diferencia
+    # de la de sesion, esta cookie NO es HttpOnly: el JavaScript del dashboard
+    # tiene que leerla para copiarla al header X-CSRF-Token. Que sea legible no
+    # la debilita -- su valor no autentica nada por si solo, solo prueba que la
+    # peticion la origino una pagina de ESTE origen, que es lo unico que puede
+    # leer la cookie.
+    respuesta.set_cookie(
+        COOKIE_CSRF,
+        generar_token_csrf(),
+        max_age=DURACION_SESION_SEG,
+        httponly=False,
+        samesite="Strict",
         secure=request.is_secure,
         path="/",
     )

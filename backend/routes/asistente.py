@@ -6,7 +6,7 @@ Ruta:
 
 from flask import Blueprint, jsonify, request
 
-from backend.auth import requiere_api_key
+from backend.auth import requiere_api_key, requiere_csrf
 from backend.services import asistente_ia
 from backend.services.recuperador import recuperar_contexto
 
@@ -22,6 +22,7 @@ MENSAJE_NO_DISPONIBLE = "El asistente no esta disponible en este momento"
 
 @asistente_bp.post("/preguntar")
 @requiere_api_key
+@requiere_csrf
 def preguntar():
     """Responde una pregunta en lenguaje natural fundamentada en noticias reales.
 

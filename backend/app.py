@@ -10,6 +10,7 @@ archivo no genera conflictos de merge.
     /api/asistente/*                 -> Cristian   (issue #3)
     /  y  /static-dashboard/*        -> Annabella  (issue #6, dashboard web)
     /api/noticias                    -> Cristian   (issue #8, buscador)
+    /api/temas                       -> catalogo compartido por las vistas
 """
 
 from flask import Flask, jsonify
@@ -21,6 +22,7 @@ from backend.routes.dashboard import dashboard_bp
 from backend.routes.medios import medios_bp
 from backend.routes.noticias import noticias_bp
 from backend.routes.series import series_bp
+from backend.routes.temas import temas_bp
 from backend.routes.tendencias import tendencias_bp
 
 
@@ -40,6 +42,7 @@ def crear_app(testing: bool = False, database_url: str | None = None) -> Flask:
     app.register_blueprint(series_bp, url_prefix="/api/tendencias")
     app.register_blueprint(asistente_bp, url_prefix="/api/asistente")
     app.register_blueprint(noticias_bp, url_prefix="/api/noticias")
+    app.register_blueprint(temas_bp, url_prefix="/api/temas")
     # Sin prefijo: el dashboard vive en la raiz para compartir origen con la API.
     app.register_blueprint(dashboard_bp)
 
