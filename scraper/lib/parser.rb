@@ -101,8 +101,17 @@ module NoticiaEC
     end
 
     def texto(item, nombre)
-      nodo = item.at_xpath("./#{nombre}")
-      # squeeze(' ') colapsa la sangria del XML de Primicias.
+      limpiar(item.at_xpath("./#{nombre}"))
+    end
+
+    # Busca por nombre local, ignorando el namespace del elemento.
+    def texto_por_nombre_local(item, nombre)
+      limpiar(item.at_xpath("./*[local-name()='#{nombre}']"))
+    end
+
+    # Colapsa los espacios en blanco: el XML de Primicias trae los titulos con
+    # saltos de linea y sangria.
+    def limpiar(nodo)
       nodo ? nodo.text.to_s.gsub(/\s+/, ' ').strip : ''
     end
 
@@ -114,7 +123,11 @@ module NoticiaEC
     # 'YYYY-MM-DD HH:MM:SS' en UTC, que es el formato que guarda la BD.
     def fecha(item)
       crudo = texto(item, 'pubDate')
-      crudo = texto(item, 'dc:date') if crudo.empty?
+      # local-name() y no 'dc:date': un XPath con prefijo exige que el feed
+      # declare el namespace, y si no lo declara Nokogiri lanza un error de
+      # sintaxis que el orquestador interpreta como XML invalido y descarta el
+      # medio ENTERO. Con local-name() la consulta funciona en los dos casos.
+      crudo = texto_por_nombre_local(item, 'date') if crudo.empty?
       raise ItemInvalido, 'sin fecha de publicacion' if crudo.empty?
 
       begin

@@ -58,6 +58,26 @@ RSpec.describe NoticiaEC::RssClient do
         .to raise_error(described_class::ErrorDeDescarga, /404/)
       expect(a_request(:get, url)).to have_been_made.once
     end
+
+    # Un 503 del CDN o un 429 no dicen que el feed este mal, dicen "volve en un
+    # rato". Antes se trataban como definitivos y se perdia la corrida del medio.
+    it 'reintenta ante un 503, porque el servidor puede volver' do
+      stub_request(:get, url)
+        .to_return(status: 503).then
+        .to_return(status: 200, body: '<rss/>')
+
+      expect(cliente.descargar(url)).to eq({ estado: :ok, cuerpo: '<rss/>' })
+      expect(a_request(:get, url)).to have_been_made.twice
+      expect(esperas).to eq([1])
+    end
+
+    it 'reintenta ante un 429 y termina en ErrorDeDescarga si no cede' do
+      stub_request(:get, url).to_return(status: 429)
+
+      expect { cliente.descargar(url) }
+        .to raise_error(described_class::ErrorDeDescarga, /429/)
+      expect(a_request(:get, url)).to have_been_made.times(3)
+    end
   end
 
   describe 'GET condicional (optimizacion)' do
@@ -131,6 +151,22 @@ RSpec.describe NoticiaEC::RssClient do
       File.write(ruta_cache, 'esto no es json {{{')
       stub_request(:get, url).to_return(status: 200, body: '<rss/>')
       expect(cliente.descargar(url)[:estado]).to eq(:ok)
+    end
+
+    # Cubre una perdida de datos silenciosa: el hash del cuerpo se guarda al
+    # descargar, asi que si despues falla el parseo o la escritura en la base,
+    # la corrida siguiente creeria que el feed "no cambio" y lo saltearia
+    # entero. olvidar() es como el orquestador desarma eso.
+    it 'olvidar(url) hace que la proxima corrida vuelva a procesar el feed' do
+      stub_request(:get, url).to_return(status: 200, body: '<rss>mismo</rss>')
+      cliente.descargar(url)
+      cliente.olvidar(url)
+      cliente.guardar_cache
+
+      segundo = described_class.new(ruta_cache: ruta_cache, logger: logger_mudo, pausa: ->(_) {})
+      stub_request(:get, url).to_return(status: 200, body: '<rss>mismo</rss>')
+
+      expect(segundo.descargar(url)).to eq({ estado: :ok, cuerpo: '<rss>mismo</rss>' })
     end
   end
 end

@@ -34,8 +34,14 @@ module NoticiaEC
     # Excepcion propia: agrupa cualquier falla de red ya agotados los reintentos.
     class ErrorDeDescarga < StandardError; end
 
+    # Respuesta HTTP que si vale la pena reintentar: un 503 del CDN o un 429 no
+    # dicen que el feed este mal, dicen "volve en un rato". Se distingue de
+    # ErrorDeDescarga --que es definitivo-- para que entre en el backoff.
+    class ErrorTransitorio < StandardError; end
+
     # Errores transitorios que justifican reintentar.
     ERRORES_REINTENTABLES = [
+      ErrorTransitorio,
       HTTParty::Error,
       Net::OpenTimeout,
       Net::ReadTimeout,
@@ -87,6 +93,18 @@ module NoticiaEC
       raise ErrorDeDescarga, "No se pudo descargar #{url}: #{ultimo_error.class}: #{ultimo_error.message}"
     end
 
+    # Descarta lo recordado de un feed cuyo procesamiento fallo despues de la
+    # descarga.
+    #
+    # Sin esto habia perdida de datos silenciosa: el hash del cuerpo se guardaba
+    # al descargar, asi que si despues fallaba el parseo o la escritura en la
+    # base, la corrida siguiente veia el mismo XML, calculaba el mismo hash,
+    # creia que "no cambio" y se salteaba el feed entero. Esas noticias no se
+    # recuperaban nunca, hasta que el medio publicara algo nuevo.
+    def olvidar(url)
+      @cache.delete(url)
+    end
+
     # Persiste el cache de validadores. Se llama una vez al final de la corrida.
     def guardar_cache
       FileUtils.mkdir_p(File.dirname(@ruta_cache))
@@ -128,8 +146,12 @@ module NoticiaEC
         else
           { estado: :ok, cuerpo: cuerpo }
         end
-      when 400..599
-        # Un 404 o un 500 no se reintentan: el problema no es transitorio.
+      when 429, 500..599
+        # El servidor esta caido o nos esta frenando: se reintenta con backoff.
+        raise ErrorTransitorio, "#{url} respondio HTTP #{respuesta.code}"
+      when 400..499
+        # Un 404 o un 403 no se reintentan: el feed se movio o nos bloquearon,
+        # y repetir la misma peticion no lo va a cambiar.
         raise ErrorDeDescarga, "#{url} respondio HTTP #{respuesta.code}"
       else
         raise ErrorDeDescarga, "#{url} respondio un codigo inesperado: #{respuesta.code}"

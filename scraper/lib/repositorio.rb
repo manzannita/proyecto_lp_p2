@@ -52,9 +52,14 @@ module NoticiaEC
 
     # Asegura que el medio del YAML exista en la tabla y devuelve su id.
     def id_de_medio(slug:, nombre:, url_feed:)
+      # DO UPDATE y no DO NOTHING: config/medios.yml es la fuente de verdad de
+      # los medios, asi que si ahi cambia el nombre o la URL del feed, la tabla
+      # tiene que seguirlo. Con DO NOTHING quedaba el valor de la primera
+      # corrida para siempre.
       @db.execute(
         'INSERT INTO medios (nombre, slug, url_feed, activo) VALUES (?, ?, ?, 1) ' \
-        'ON CONFLICT (slug) DO NOTHING',
+        'ON CONFLICT (slug) DO UPDATE SET nombre = excluded.nombre, ' \
+        'url_feed = excluded.url_feed',
         [nombre, slug, url_feed]
       )
       fila = @db.get_first_row('SELECT id FROM medios WHERE slug = ?', [slug])
@@ -93,7 +98,8 @@ module NoticiaEC
           sentencia.close
         end
         @db.commit
-      rescue SQLite3::Exception, StandardError => e
+      # SQLite3::Exception ya es StandardError: rescatar la generica alcanza.
+      rescue StandardError => e
         @db.rollback
         @logger.error("Rollback del lote (#{noticias.size} noticias): #{e.class}: #{e.message}")
         raise

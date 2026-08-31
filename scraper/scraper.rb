@@ -62,13 +62,17 @@ module NoticiaEC
       parser = Parser.new(logger: @logger)
       repositorio = Repositorio.new(ruta_bd: @ruta_bd, logger: @logger)
 
-      resultados = medios.map { |medio| procesar_medio(medio, cliente, parser, repositorio) }
-
-      cliente.guardar_cache
-      imprimir_resumen(resultados, repositorio.total_noticias)
-      repositorio.cerrar
-
-      resultados.any? { |r| r[:estado] != :error } ? 0 : 1
+      begin
+        resultados = medios.map { |medio| procesar_medio(medio, cliente, parser, repositorio) }
+        imprimir_resumen(resultados, repositorio.total_noticias)
+        resultados.any? { |r| r[:estado] != :error } ? 0 : 1
+      ensure
+        # En ensure y no al final del cuerpo: si algo inesperado aborta la
+        # corrida, el cache igual se persiste y la conexion se cierra. Antes se
+        # perdian los validadores de los medios que SI habian andado.
+        cliente.guardar_cache
+        repositorio.cerrar
+      end
     end
 
     private
@@ -121,10 +125,19 @@ module NoticiaEC
       { slug: slug, estado: :error, motivo: 'descarga', leidas: 0, nuevas: 0, duplicadas: 0 }
     rescue Nokogiri::XML::SyntaxError => e
       @logger.error("#{slug}: XML invalido -> #{e.message}")
+      cliente.olvidar(medio['url_feed'])
       { slug: slug, estado: :error, motivo: 'xml', leidas: 0, nuevas: 0, duplicadas: 0 }
     rescue SQLite3::Exception => e
       @logger.error("#{slug}: fallo la escritura en la base -> #{e.message}")
+      cliente.olvidar(medio['url_feed'])
       { slug: slug, estado: :error, motivo: 'base de datos', leidas: 0, nuevas: 0, duplicadas: 0 }
+    rescue StandardError => e
+      # Ultimo recurso. El encabezado de este archivo promete que un diario
+      # caido nunca aborta la corrida completa, y con tres clases rescatadas esa
+      # promesa no se cumplia: cualquier otra excepcion se llevaba todo.
+      @logger.error("#{slug}: error inesperado (#{e.class}) -> #{e.message}")
+      cliente.olvidar(medio['url_feed'])
+      { slug: slug, estado: :error, motivo: e.class.name, leidas: 0, nuevas: 0, duplicadas: 0 }
     end
 
     def imprimir_resumen(resultados, total)
