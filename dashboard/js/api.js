@@ -9,6 +9,12 @@
  * Cancelacion: cada llamada cancela la anterior de su misma "clave". Sin esto,
  * mover un filtro rapido deja varias peticiones en vuelo y una respuesta lenta
  * puede pintar datos viejos encima de los nuevos.
+ *
+ * CSRF: el unico POST del dashboard (el asistente) manda ademas el header
+ * X-CSRF-Token copiado de la cookie noticia_ec_csrf. Esa cookie SI es legible
+ * desde JavaScript, al reves que la de sesion, y esa asimetria es justamente el
+ * mecanismo: otro sitio puede provocar una peticion que arrastre las cookies
+ * del usuario, pero no puede leerlas, asi que no puede armar el header.
  */
 
 const BASE = "/api";
@@ -83,9 +89,69 @@ async function pedir(ruta, parametros = {}, clave = ruta) {
   return cuerpo;
 }
 
+/** Token CSRF que dejo el servidor al entregar el dashboard. */
+function tokenCsrf() {
+  const galleta = document.cookie
+    .split("; ")
+    .find((par) => par.startsWith("noticia_ec_csrf="));
+  return galleta ? decodeURIComponent(galleta.slice("noticia_ec_csrf=".length)) : "";
+}
+
+/** POST con cuerpo JSON. Mismo manejo de errores que pedir(), mas el CSRF. */
+async function enviar(ruta, cuerpo, clave = ruta) {
+  enVuelo.get(clave)?.abort();
+  const controlador = new AbortController();
+  enVuelo.set(clave, controlador);
+
+  let respuesta;
+  try {
+    respuesta = await fetch(`${BASE}${ruta}`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "X-CSRF-Token": tokenCsrf(),
+      },
+      body: JSON.stringify(cuerpo),
+      signal: controlador.signal,
+    });
+  } catch (error) {
+    if (error.name === "AbortError") throw error;
+    throw new ErrorDeApi(
+      "No se pudo contactar al servidor. Verifica que Flask esté corriendo.",
+      0
+    );
+  } finally {
+    if (enVuelo.get(clave) === controlador) enVuelo.delete(clave);
+  }
+
+  const datos = await respuesta.json().catch(() => ({}));
+
+  if (!respuesta.ok) {
+    if (respuesta.status === 401 || respuesta.status === 403) {
+      throw new ErrorDeApi(
+        "La sesión del dashboard expiró o no es válida. Recarga la página para renovarla.",
+        respuesta.status
+      );
+    }
+    throw new ErrorDeApi(
+      datos.error || `El servidor respondió ${respuesta.status}.`,
+      respuesta.status
+    );
+  }
+
+  return datos;
+}
+
 /* -------------------------------------------------------------------------
    Endpoints. Uno por pregunta de analisis, mas el catalogo y el buscador.
    ------------------------------------------------------------------------- */
+
+/** Catalogo cerrado de temas. El dashboard nunca escribe los slugs a mano. */
+export function obtenerTemas() {
+  return pedir("/temas", {}, "temas");
+}
 
 /** Ranking de temas. Issue #6 (Annabella). */
 export function obtenerTopTemas({ limite, desde, hasta, medio } = {}) {
@@ -123,11 +189,22 @@ export function obtenerSeriesSemanales({ tema, desde, hasta, medio } = {}) {
   );
 }
 
-/** Buscador de noticias. Issue #8 (Cristian) - el endpoint aun no existe. */
+/** Buscador de noticias paginado. Issue #8 (Cristian). */
 export function buscarNoticias({ q, tema, medio, desde, hasta, pagina, porPagina } = {}) {
   return pedir(
     "/noticias",
     { q, tema, medio, desde, hasta, pagina, por_pagina: porPagina },
     "noticias"
+  );
+}
+
+/** Asistente de IA. Unico POST del dashboard, por eso es el unico que lleva
+ *  el token CSRF. El limite de contexto es cuantas noticias se le pasan al
+ *  modelo como fundamento; el backend lo topea en 50. */
+export function preguntarAsistente({ pregunta, limiteContexto } = {}) {
+  return enviar(
+    "/asistente/preguntar",
+    { pregunta, limite_contexto: limiteContexto },
+    "asistente"
   );
 }

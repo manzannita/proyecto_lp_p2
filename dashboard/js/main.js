@@ -58,6 +58,13 @@ const VISTAS = {
     responsable: "Cristian",
     titulo: "Buscador de noticias",
   },
+  asistente: {
+    contenedor: "vista-asistente",
+    cargar: () => import("./vistas/asistente.js"),
+    issue: 3,
+    responsable: "Cristian",
+    titulo: "Asistente de IA",
+  },
 };
 
 const VISTA_POR_DEFECTO = "tendencias";
@@ -143,7 +150,7 @@ async function prepararFiltros() {
 
 function nombreDeVistaEnUrl() {
   const nombre = window.location.hash.replace(/^#\/?/, "").trim();
-  return nombre in VISTAS ? nombre : nombre === "asistente" ? "asistente" : VISTA_POR_DEFECTO;
+  return nombre in VISTAS ? nombre : VISTA_POR_DEFECTO;
 }
 
 function marcarNavegacion(nombre) {
@@ -172,19 +179,6 @@ async function irA(nombre) {
     }
   }
   vistaActiva = null;
-
-  // El asistente existe en el backend pero su pantalla es del avance 3.
-  if (nombre === "asistente") {
-    const contenedor = document.getElementById("vista-tendencias");
-    mostrarSolo("vista-tendencias");
-    marcarNavegacion("tendencias");
-    mostrarPendiente(contenedor, {
-      titulo: "El asistente de IA llega en el avance 3",
-      issue: 3,
-      responsable: "Cristian",
-    });
-    return;
-  }
 
   const definicion = VISTAS[nombre];
   const contenedor = document.getElementById(definicion.contenedor);
@@ -225,6 +219,31 @@ async function irA(nombre) {
     });
   }
 }
+
+/* -------------------------------------------------------------------------
+   Impresion
+   -------------------------------------------------------------------------
+   El CSS de impresion (base.css) hace todo el trabajo salvo una cosa que no se
+   puede hacer desde ahi: ABRIR la tabla equivalente. Un <details> cerrado no lo
+   abre ningun selector, y en papel la tabla es lo que reemplaza al grafico (el
+   por que esta explicado en el @media print de base.css).
+
+   Se abren solo las que estaban cerradas y se devuelven a como estaban al
+   terminar, para no cambiarle a nadie el estado de la pantalla por haber
+   mandado a imprimir.
+   ------------------------------------------------------------------------- */
+
+let detallesAbiertosParaImprimir = [];
+
+window.addEventListener("beforeprint", () => {
+  detallesAbiertosParaImprimir = [...document.querySelectorAll("details.tabla-datos:not([open])")];
+  for (const detalle of detallesAbiertosParaImprimir) detalle.open = true;
+});
+
+window.addEventListener("afterprint", () => {
+  for (const detalle of detallesAbiertosParaImprimir) detalle.open = false;
+  detallesAbiertosParaImprimir = [];
+});
 
 /* -------------------------------------------------------------------------
    Arranque

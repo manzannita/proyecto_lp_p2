@@ -12,7 +12,7 @@
   <!--
     ESTE ARCHIVO ES DEL ISSUE #6 Y NO SE EDITA DESDE LAS OTRAS VISTAS.
 
-    Las cuatro <section> de abajo estan VACIAS a proposito: cada vista genera
+    Las cinco <section> de abajo estan VACIAS a proposito: cada vista genera
     su propio DOM desde su modulo de js/vistas/. Es la regla anti-conflicto del
     equipo -- si cada quien escribiera su marcado aqui, este archivo seria un
     conflicto de merge permanente entre los issues #6, #7 y #8.
@@ -55,13 +55,7 @@
             <a class="navegacion__enlace" href="#/buscador" data-vista="buscador">Buscador</a>
           </li>
           <li>
-            <!-- El backend del asistente ya existe (POST /api/asistente/preguntar),
-                 pero su pantalla es del avance 3. Se muestra deshabilitada para que
-                 el alcance del avance quede explicito en la interfaz. -->
-            <a class="navegacion__enlace" href="#/asistente" aria-disabled="true" tabindex="-1">
-              Asistente IA
-              <span class="navegacion__etiqueta">avance 3</span>
-            </a>
+            <a class="navegacion__enlace" href="#/asistente" data-vista="asistente">Asistente IA</a>
           </li>
         </ul>
       </nav>
@@ -95,6 +89,7 @@
       <section class="vista" id="vista-comparativa" aria-labelledby="titulo-comparativa" hidden></section>
       <section class="vista" id="vista-series" aria-labelledby="titulo-series" hidden></section>
       <section class="vista" id="vista-buscador" aria-labelledby="titulo-buscador" hidden></section>
+      <section class="vista" id="vista-asistente" aria-labelledby="titulo-asistente" hidden></section>
     </main>
 
     <footer class="pie">
