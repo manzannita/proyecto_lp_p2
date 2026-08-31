@@ -10,11 +10,29 @@ Reglas del proyecto:
 """
 
 import sqlite3
+import unicodedata
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Iterator
 
 from flask import current_app, g
+
+
+def sin_acentos(texto: str | None) -> str:
+    """Minusculas y sin diacriticos. Se registra como funcion SQL.
+
+    Existe porque LIKE de SQLite compara byte a byte: "diesel" no encuentra
+    "diesel" acentuado ni al reves. Con esto una consulta puede pedir
+    `sin_acentos(n.titular) LIKE sin_acentos(?)` y comparar las dos formas
+    normalizadas, que es lo que espera cualquiera que escriba en espanol.
+
+    A cambio, la comparacion no puede usar indices. Da igual a esta escala --
+    unos miles de titulares -- y ninguna consulta del proyecto indexa texto.
+    """
+    if texto is None:
+        return ""
+    descompuesto = unicodedata.normalize("NFD", texto.lower())
+    return "".join(c for c in descompuesto if unicodedata.category(c) != "Mn")
 
 
 def _ruta_bd() -> str:
@@ -27,6 +45,11 @@ def _conectar(ruta: str) -> sqlite3.Connection:
     conexion.row_factory = sqlite3.Row
     # Las FK no se aplican por defecto en SQLite; sin esto ON DELETE es letra muerta.
     conexion.execute("PRAGMA foreign_keys = ON")
+    # Busqueda insensible a acentos para el asistente (ver sin_acentos arriba).
+    # deterministic=True permite usarla dentro de indices y expresiones
+    # generadas; la funcion lo es, siempre devuelve lo mismo para la misma
+    # entrada.
+    conexion.create_function("sin_acentos", 1, sin_acentos, deterministic=True)
     return conexion
 
 
