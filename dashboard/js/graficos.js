@@ -47,8 +47,6 @@ export function colorDeSerie(indice) {
   return PALETA[indice];
 }
 
-const sinMovimiento = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 /* Etiquetas al final de la barra. Chart.js no las trae, y sin ellas el valor
    solo se puede leer pasando el mouse: un tooltip nunca puede ser la unica
    forma de leer un dato. Si la etiqueta no cabe fuera de la barra, se dibuja
@@ -98,10 +96,30 @@ export function inicializar() {
   Chart.defaults.font.family = TOKENS.mono;
   Chart.defaults.font.size = 11;
   Chart.defaults.color = TOKENS.tinta3;
-  Chart.defaults.animation = sinMovimiento ? false : { duration: 380 };
+  // Los graficos se dibujan de una, SIN animacion de entrada del canvas.
+  //
+  // Por diseno: el dashboard ya tiene su unico momento de animacion, y es la
+  // entrada de la tarjeta (.surge en base.css). Un canvas animandose por
+  // dentro mientras la tarjeta entra son dos animaciones peleando por el
+  // mismo instante.
+  //
+  // Y por correccion, que es la razon que manda: con la animacion puesta, el
+  // bucle de Chart.js se queda colgado y el grafico queda en blanco o pintado
+  // a medias. Esta comprobado que no es un problema de datos ni de layout --
+  // los puntos SI llegan a su posicion final y el area de trazado tiene el
+  // tamano correcto, pero el ultimo frame nunca se pinta; un chart.draw() a
+  // mano revela el grafico entero y correcto. En un tablero cuyo unico trabajo
+  // es mostrar datos, un grafico que a veces no aparece no es negociable.
+  //
+  // Ojo con la forma de asignarlo: Chart.defaults.animation trae ademas el
+  // easing por defecto, asi que sobrescribir el objeto entero (como estaba
+  // antes: `= { duration: 380 }`) lo borraba en silencio.
+  Chart.defaults.animation = false;
   Chart.defaults.maintainAspectRatio = false;
 
   // Tooltip con la misma voz que el resto: tinta sobre papel, mono, sin sombra.
+  // Aca el Object.assign de primer nivel es seguro: titleFont y bodyFont son
+  // configuracion pura, no fabricas como labels.generateLabels de la leyenda.
   Object.assign(Chart.defaults.plugins.tooltip, {
     backgroundColor: TOKENS.tinta,
     titleColor: "#f8f6f0",
@@ -116,18 +134,24 @@ export function inicializar() {
     boxPadding: 4,
   });
 
-  Object.assign(Chart.defaults.plugins.legend, {
-    position: "top",
-    align: "start",
-    labels: {
-      usePointStyle: true,
-      pointStyle: "rect",
-      boxWidth: 9,
-      boxHeight: 9,
-      padding: 14,
-      color: TOKENS.tinta2,
-      font: { family: TOKENS.mono, size: 11 },
-    },
+  // OJO con la forma de asignar esto. `labels` no es una bolsa de opciones
+  // sueltas: trae las funciones con las que Chart.js CONSTRUYE la leyenda
+  // (generateLabels, filter, sort). Pasar un objeto `labels` nuevo dentro del
+  // Object.assign lo reemplazaba entero y se llevaba generateLabels, asi que
+  // la leyenda quedaba con cero items -- existia, medía 10 px de alto y no
+  // dibujaba nada. Se veia como "los graficos de dos series no tienen
+  // leyenda": el de comparativa entre medios y el de series con dos temas.
+  // Por eso se escribe propiedad por propiedad y se fusiona DENTRO de labels.
+  Chart.defaults.plugins.legend.position = "top";
+  Chart.defaults.plugins.legend.align = "start";
+  Object.assign(Chart.defaults.plugins.legend.labels, {
+    usePointStyle: true,
+    pointStyle: "rect",
+    boxWidth: 9,
+    boxHeight: 9,
+    padding: 14,
+    color: TOKENS.tinta2,
+    font: { family: TOKENS.mono, size: 11 },
   });
 
   Chart.register(etiquetasAlFinal);
