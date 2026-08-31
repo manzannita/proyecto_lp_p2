@@ -217,9 +217,28 @@ se ve igual sin conexión a internet.
 | `#/comparativa` | Qué prioriza cada medio | Barras agrupadas | [#7](../../issues/7) Valentina |
 | `#/series` | Variación semana a semana | Líneas | [#8](../../issues/8) Cristian |
 | `#/buscador` | Búsqueda por tema o palabra clave | Lista paginada | [#8](../../issues/8) Cristian |
+| `#/asistente` | Preguntas en lenguaje natural | Hilo con fuentes citadas | [#3](../../issues/3) Cristian |
 
-La pantalla del asistente de IA aparece deshabilitada y etiquetada "avance 3":
-su endpoint ya existe, pero su interfaz no es parte de este avance.
+### Vista: asistente de IA
+
+`dashboard/js/vistas/asistente.js` es la única vista que **escribe** contra la
+API, y de ahí salen sus cuatro diferencias con las otras:
+
+- **No se dispara sola.** Las demás vuelven a consultar en cada cambio de
+  filtro; aquí cada llamada consume cuota de un proveedor pago, así que la
+  petición sale solo cuando la persona envía la pregunta.
+- **Lleva token CSRF**, por ser un `POST` autenticado por cookie (ver más
+  abajo).
+- **Muestra sus fuentes** debajo de cada respuesta: las noticias reales que se
+  le pasaron al modelo. Sin esa lista la respuesta sería indistinguible de una
+  alucinación.
+- **No usa la barra de filtros.** El contexto lo arma `recuperador.py` leyendo
+  la propia pregunta; si hay filtros puestos, la vista lo avisa en pantalla
+  para que nadie concluya que el asistente miente.
+
+Las preguntas sugeridas están verificadas contra el corpus: una sugerencia que
+responde «no tengo datos suficientes» hace parecer roto al asistente en el
+primer clic. `backend/tests/test_fundamentacion.py` las cubre.
 
 ### Vista: evolución semanal
 
@@ -291,15 +310,50 @@ quedaría en nada. En su lugar:
    la puede exfiltrar, y `SameSite=Strict` impide que otro sitio provoque
    peticiones autenticadas.
 
-> Los cuatro endpoints que consume el dashboard son `GET`. Cuando en el avance 3
-> se conecte `POST /api/asistente/preguntar` desde el navegador, ese POST
-> necesitará además un token CSRF o quedarse solo con el header.
+### CSRF: por qué el POST del asistente lleva un segundo token
+
+Mientras todos los endpoints fueron `GET`, la cookie de sesión no abría ningún
+riesgo de falsificación: un `GET` no cambia estado. `POST
+/api/asistente/preguntar` sí consume cuota de un proveedor pago, así que lleva
+además `@requiere_csrf`, con el patrón de **doble envío**:
+
+1. `GET /` emite un token aleatorio en la cookie `noticia_ec_csrf`. Esa cookie
+   **no** es `HttpOnly`, a propósito: el JavaScript tiene que poder leerla.
+2. El `fetch` la copia en el header `X-CSRF-Token` (`dashboard/js/api.js`).
+3. El servidor exige que cookie y header coincidan.
+
+Funciona porque otro sitio puede provocar una petición que arrastre las cookies
+de la persona, pero **no puede leerlas** (lo impide la *same-origin policy*), así
+que no puede construir el header. Es la segunda línea: la primera sigue siendo
+`SameSite=Strict`.
+
+Un cliente que se autentica con `X-API-Key` queda exento: no depende de
+cookies, así que no hay nada que falsificar.
+
+### Imprimir el dashboard
+
+El concepto visual es papel impreso, así que el dashboard se imprime de verdad:
+**Imprimir → Guardar como PDF** da una hoja presentable sin capturas, útil para
+pegar evidencia en el informe. La hoja de impresión (`css/base.css`,
+`@media print`) saca la navegación, los filtros y los botones, y deja el
+cabezote con el periodo, las cifras y los datos.
+
+Una decisión que conviene conocer: **en papel no sale el gráfico, sale la tabla
+equivalente.** Chart.js redibuja el `<canvas>` de forma asíncrona cuando cambia
+el ancho del contenedor, y la paginación del navegador es síncrona: la hoja es
+más angosta que la pantalla, y el PDF salía con las barras a medio dibujar. Se
+puede forzar un `resize()` en `beforeprint`, pero el resultado sigue dependiendo
+de quién gane la carrera, y un gráfico que a veces sale vacío es peor que no
+imprimirlo. La tabla lleva los mismos números y es la única forma de auditarlos
+en papel. Lo único que no se puede hacer desde CSS es abrirla —un `<details>`
+cerrado no lo abre ningún selector—, así que lo hace el handler de
+`beforeprint` en `main.js`, que la devuelve a como estaba al terminar.
 
 ### Estructura y reparto
 
 ```
 dashboard/
-├── index.html                shell: cabezote, nav, filtros y 4 secciones VACÍAS
+├── index.html                shell: cabezote, nav, filtros y 5 secciones VACÍAS
 ├── vendor/                   Chart.js 4.4.3 y las tipografías (sin CDN)
 ├── css/  base.css            tokens, tipografía, layout
 │      componentes.css        tarjetas, fichas, tablas, estados
@@ -446,6 +500,28 @@ si el `medio` no existe. `404` si el slug de `tema` no está en el catálogo.
 `401` sin API key. Un tema válido sin noticias en el rango responde `200` con
 `"serie": []`, no `404`.
 
+### `GET /api/temas` — catálogo compartido
+
+Catálogo cerrado de temas con cuántas noticias tiene clasificadas cada uno.
+Existe para que el dashboard **no escriba los slugs a mano**: los selectores de
+tema se arman con esta respuesta, así que agregar un tema a `schema.sql` y a
+`pipeline/temas.yml` lo hace aparecer solo en la interfaz.
+
+```bash
+curl -H "X-API-Key: $API_KEY" http://127.0.0.1:5000/api/temas
+```
+
+```json
+[
+  { "id": 1, "nombre": "Politica", "slug": "politica", "total_noticias": 34 },
+  { "id": 2, "nombre": "Economia", "slug": "economia", "total_noticias": 21 }
+]
+```
+
+El orden es el del catálogo (por `id`) y **no** por volumen: el dashboard le
+asigna a cada tema un color según su posición en esta lista, y un orden que
+dependiera de los datos repintaría los gráficos en cada cambio de filtro.
+
 ### `GET /api/noticias` — Cristian (issue #8)
 
 Buscador de noticias por palabra clave y/o filtros de catálogo. Es el
@@ -526,12 +602,32 @@ LLM**, para no gastar cuota ni arriesgar una alucinación.
 
 | Variable | Para qué |
 |---|---|
-| `LLM_API_KEY` | Clave del proveedor del LLM (OpenAI). Se obtiene en [platform.openai.com/api-keys](https://platform.openai.com/api-keys). |
-| `LLM_MODELO` | Modelo a usar, ej. `gpt-4o-mini`. |
+| `LLM_API_KEY` | Clave del proveedor. Se obtiene en [console.anthropic.com](https://console.anthropic.com) → *Settings* → *API keys*; empieza con `sk-ant-api`. |
+| `LLM_MODELO` | `claude-opus-5`, `claude-sonnet-5` o `claude-haiku-4-5`. Sin sufijo de fecha. |
+| `LLM_WORKSPACE_ID` | **Opcional.** Solo si la clave está ligada a una identidad dentro de una organización que usa *workspaces*: la API responde `400` pidiendo el id del workspace en el que actúa (empieza con `wrkspc_`). Con una clave normal se deja vacío. |
 
-Si falta cualquiera de las dos, `backend/services/asistente_ia.py` falla con
-un mensaje claro apenas se necesita el LLM, no a medias de una petición con un
+Si faltan las dos primeras, `backend/services/asistente_ia.py` falla con un
+mensaje claro apenas se necesita el LLM, no a medias de una petición con un
 error críptico del proveedor.
+
+**Diagnóstico de la configuración:**
+
+```bash
+python -m backend.verificar_llm
+```
+
+Desde el dashboard *cualquier* fallo del proveedor se ve igual — «el asistente
+no está disponible» —, que es lo correcto de cara al usuario pero inservible
+para depurar. Ese comando distingue una variable que falta, de una clave
+rechazada, de un modelo inexistente, de una organización que exige *workspace*,
+de falta de saldo, de un problema de red; y dice qué hacer en cada caso. Nunca
+imprime la clave: solo su prefijo, su largo y una huella, que alcanza para
+confirmar que el `.env` cambió de verdad.
+
+> **Una suscripción a Claude no es crédito de API.** Son dos productos con
+> facturación separada: la clave tiene que venir de la consola de API y esa
+> cuenta necesita saldo propio. Sin saldo, la API responde `400` con
+> `credit balance is too low` — no `429`, que es lo que uno esperaría.
 
 ```bash
 curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
@@ -546,23 +642,26 @@ curl -X POST -H "X-API-Key: $API_KEY" -H "Content-Type: application/json" \
     { "titular": "Operativo policial deja seis detenidos en Duran", "medio": "El Universo", "url": "https://...", "fecha": "2026-08-05" }
   ],
   "noticias_consultadas": 18,
-  "modelo": "gpt-4o-mini"
+  "modelo": "claude-haiku-4-5"
 }
 ```
 
 Body: `pregunta` (obligatorio, 1 a 500 caracteres) y `limite_contexto`
 (opcional, 1 a 50, por defecto 20).
 
-Cada llamada al proveedor usa un timeout de 30 s y reintenta una vez ante un
-error transitorio (5xx o timeout de red); no reintenta ante `401`/`429`, ya
-que repetir la misma petición no cambia el resultado.
+Cada llamada usa un timeout de 30 s y reintenta una vez ante un error
+transitorio (5xx, 429 o fallo de red); no reintenta ante `400`/`401`, que son
+errores del cliente frente al proveedor. Los reintentos y la espera exponencial
+los hace el SDK oficial, no código propio.
 
 Errores: `400` si falta `pregunta`, viene vacía o supera 500 caracteres, o si
 `limite_contexto` no es un entero entre 1 y 50. `401` sin API key. `429` si el
 proveedor aplica límite de tasa. `503` con
 `{"error": "El asistente no esta disponible en este momento"}` ante timeout o
 caída del proveedor — nunca se filtra el stack trace ni el mensaje crudo del
-proveedor.
+proveedor, aunque sí se registra en el log del servidor. `403` si la petición
+viene autenticada por cookie y sin el token CSRF; un cliente que manda
+`X-API-Key` queda exento.
 
 ## Pipeline de clasificación
 
@@ -596,16 +695,20 @@ esté siempre fundamentada en lo que realmente se recolectó:
    `titular`/`resumen` con `LIKE` parametrizado, detecta filtros de tema/fecha
    mencionados en la pregunta, y ordena por relevancia (peso doble al
    titular) y recencia. Si no hay coincidencias devuelve `[]`.
-2. **`backend/services/asistente_ia.py`** — cliente HTTP del proveedor
-   (OpenAI, Chat Completions). Usa un prompt de sistema
+2. **`backend/services/asistente_ia.py`** — cliente del proveedor (Anthropic,
+   Messages API, vía el SDK oficial `anthropic`). Es la **única** pieza que
+   habla con el proveedor: cambiarlo solo toca este archivo, y ya pasó una vez
+   —de OpenAI a Anthropic— sin que ninguna capa de arriba se enterara. Usa un
+   prompt de sistema
    (`backend/services/prompts.py`) que obliga a responder solo con el
    contexto entregado, citar el medio de cada dato y decir explícitamente "no
    tengo datos suficientes" cuando el contexto no alcance. Los errores del
    proveedor se envuelven en `LLMTimeout`, `LLMRateLimit` y `LLMError` para
    que la ruta decida el código HTTP sin filtrar el mensaje crudo.
 
-**Variables de entorno:** ver `LLM_API_KEY` y `LLM_MODELO` en la sección del
-endpoint `POST /api/asistente/preguntar` más abajo.
+**Variables de entorno:** ver `LLM_API_KEY`, `LLM_MODELO` y
+`LLM_WORKSPACE_ID` en la sección del endpoint `POST /api/asistente/preguntar`
+más abajo, junto con el comando `python -m backend.verificar_llm`.
 
 ## Cómo correr los tests
 
@@ -642,16 +745,18 @@ proyecto_lp_p2/
 │   ├── app.py                 factory + registro de todos los blueprints
 │   ├── config.py              variables de entorno
 │   ├── db.py                  conexión, transaccion(), consultas
-│   ├── auth.py                @requiere_api_key (header o cookie)
+│   ├── auth.py                @requiere_api_key (header o cookie) + @requiere_csrf
 │   ├── init_db.py             crea la base desde schema.sql
+│   ├── verificar_llm.py       diagnostica la configuración del asistente
 │   ├── requirements.txt
 │   ├── routes/
 │   │   ├── tendencias.py      #1 Annabella
 │   │   ├── medios.py          #2 Valentina
 │   │   ├── series.py          #3 Cristian
 │   │   ├── asistente.py       #3 Cristian
-│   │   ├── dashboard.py       #6 Annabella  sirve el dashboard + cookie
-│   │   └── noticias.py        #8 Cristian   buscador (stub)
+│   │   ├── dashboard.py       #6 Annabella  sirve el dashboard + cookies
+│   │   ├── noticias.py        #8 Cristian   buscador paginado
+│   │   └── temas.py           catálogo compartido por las vistas
 │   ├── pipeline/              #2 Valentina
 │   ├── services/              #3 Cristian
 │   └── tests/
@@ -671,6 +776,6 @@ proyecto_lp_p2/
 
 Todos los blueprints se registran de una vez en `app.py`, y el que todavía no
 está implementado entra como stub (así entraron `medios.py`, `series.py` y
-`asistente.py` en el avance 1, y así entra `noticias.py` en el avance 2). De esa
-forma cada issue solo toca su propio archivo de rutas y `app.py` no genera
-conflictos de merge.
+`asistente.py` en el avance 1, y `noticias.py` en el avance 2). De esa forma
+cada issue solo toca su propio archivo de rutas y `app.py` no genera conflictos
+de merge. Al cierre del avance 3 no queda ningún stub.
