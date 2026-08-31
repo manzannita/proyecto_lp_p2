@@ -1,5 +1,6 @@
 """Clasificador tematico determinista basado en palabras clave."""
 
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -20,10 +21,49 @@ def cargar_temas() -> dict[str, dict]:
     return catalogo
 
 
+def _variantes(clave: str) -> list[str]:
+    """La clave y sus formas de numero, singular y plural.
+
+    temas.yml lista casi todo en singular, y el espanol periodistico usa el
+    plural de forma masiva: "robos", "elecciones", "hospitales", "precios",
+    "bandas", "policias". Antes se exigia el token exacto, asi que
+    "Detienen a tres policias por robos" no calzaba con ninguna clave y caia
+    en "otros" -- mientras "Detienen a un policia por robo" puntuaba 4.0. Esa
+    es la causa raiz del peso desmedido que tenia el tema "otros", que la
+    propia vista de comparativa marca como senal de alarma.
+
+    Se generan las dos direcciones porque el catalogo mezcla numeros: de
+    "robo" salen "robos"/"roboes", y de "elecciones" sale "eleccion".
+    """
+    formas = {clave}
+    formas.add(f"{clave}s")
+    formas.add(f"{clave}es")
+    if clave.endswith("es") and len(clave) > 3:
+        formas.add(clave[:-2])
+    if clave.endswith("s") and len(clave) > 2:
+        formas.add(clave[:-1])
+    # De mas largo a mas corto para que la alternancia del regex prefiera la
+    # forma mas especifica y no corte el token a la mitad.
+    return sorted(formas, key=len, reverse=True)
+
+
+@lru_cache(maxsize=512)
+def _patron(clave: str) -> re.Pattern[str]:
+    """Regex de token completo para una clave, con sus variantes de numero.
+
+    Se usan lookarounds y no separadores de espacio consumidos, que era el otro
+    defecto del conteo anterior: `" robo robo ".count(" robo ")` devuelve 1 y no
+    2, porque str.count no se solapa y el espacio del medio se consume una sola
+    vez. Con lookarounds, dos claves adyacentes cuentan dos veces.
+    """
+    alternancia = "|".join(re.escape(v) for v in _variantes(clave))
+    return re.compile(rf"(?<![a-z0-9])(?:{alternancia})(?![a-z0-9])")
+
+
 def _coincidencias(texto: str, clave: str) -> int:
     if not texto or not clave:
         return 0
-    return f" {texto} ".count(f" {clave} ")
+    return len(_patron(clave).findall(texto))
 
 
 def clasificar(titular: object, resumen: object) -> tuple[str, float]:

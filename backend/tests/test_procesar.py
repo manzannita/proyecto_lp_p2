@@ -37,6 +37,29 @@ def test_noticia_invalida_cae_en_otros_y_se_registra(caplog):
     assert "Noticia 99 no pudo clasificarse" in caplog.text
 
 
+def test_un_fallo_inesperado_deja_la_noticia_pendiente(caplog, monkeypatch):
+    """Un titular vacio es permanente; un fallo del clasificador no lo es.
+
+    Antes los dos casos caian en "otros" con clasificado_en escrito, y como el
+    bucle solo reintenta las filas con tema_id IS NULL, la noticia quedaba
+    etiquetada para siempre e indistinguible de una clasificacion legitima. Un
+    temas.yml mal formado en medio de una corrida bastaba para arruinar el lote
+    entero en silencio.
+    """
+    from backend.pipeline import procesar as modulo
+
+    def explota(*_args, **_kwargs):
+        raise KeyError("temas.yml mal formado")
+
+    monkeypatch.setattr(modulo, "clasificar", explota)
+
+    slug, score = _clasificar_fila(pd.Series({"id": 7, "titular": "Titular valido", "resumen": ""}))
+
+    assert slug is modulo.FALLO, "la fila tiene que quedar sin tocar, no marcada como otros"
+    assert score == 0.0
+    assert "Queda pendiente" in caplog.text
+
+
 def test_fallo_a_mitad_del_lote_hace_rollback(app, bd_temporal):
     conexion = sqlite3.connect(bd_temporal)
     try:
